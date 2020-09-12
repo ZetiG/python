@@ -1,8 +1,7 @@
+from pathlib import Path
 from peewee import MySQLDatabase
-# import sys
-# import os
-#
-# sys.path.append(os.path.realpath('.'))
+
+print('Running' if __name__ == '__main__' else 'Importing', Path(__file__).resolve())
 
 # mysql connect config
 config = {

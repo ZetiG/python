@@ -1,10 +1,17 @@
+from pathlib import Path
+from typing import Any
+
 from peewee import IntegerField, CharField, DecimalField
-from .mysql_connect import mysql_db
+from com.zeti.py.crawler.mysql_connect import mysql_db
 
 import sys
 import os
 
-sys.path.append(os.path.realpath(''))
+print('Running' if __name__ == '__main__' else 'Importing', Path(__file__).resolve())
+
+PACKAGE_PARENT = '..'
+SCRIPT_DIR = os.path.dirname(os.path.realpath(os.path.join(os.getcwd(), os.path.expanduser(__file__))))
+sys.path.append(os.path.normpath(os.path.join(SCRIPT_DIR, PACKAGE_PARENT)))
 
 
 class DangBook:
@@ -18,6 +25,9 @@ class DangBook:
 
     def __init__(self) -> None:
         super().__init__()
+
+    def __iter__(self):
+        return self
 
     class Meta:
         database = mysql_db
