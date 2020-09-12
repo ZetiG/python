@@ -65,10 +65,5 @@ def write_item_to_mysql(book):
         .execute()
 
 
-# 存入数据库
-def insert_item_to_mysql(item):
-    print('开始写入数据库 ==> ' + str(item))
-
-
 if __name__ == "__main__":
     main(26)
