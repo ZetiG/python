@@ -1,7 +1,7 @@
 from pathlib import Path
 from peewee import MySQLDatabase
 
-print('Running' if __name__ == '__main__' else 'Importing', Path(__file__).resolve())
+# print('Running' if __name__ == '__main__' else 'Importing', Path(__file__).resolve())
 
 # mysql connect config
 config = {
@@ -12,4 +12,4 @@ config = {
 }
 
 # connect
-mysql_db = MySQLDatabase('test', config)
+mysql_db = MySQLDatabase('test', **config)
