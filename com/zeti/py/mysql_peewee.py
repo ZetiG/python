@@ -6,10 +6,10 @@ from playhouse.pool import PooledPostgresqlExtDatabase
 
 # Connect to a MySQL database on network.
 data_base = {
-    'host': '192.168.1.249',
+    'host': '106.13.22.217',
     'port': 3306,
     'user': 'root',
-    'passwd': '1234567'
+    'passwd': 'mysql123'
 }
 
 mysql_db = MySQLDatabase("test", **data_base)
