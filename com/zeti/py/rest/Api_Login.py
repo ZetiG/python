@@ -1,4 +1,5 @@
-import flask, json
+import flask
+import json
 from flask import request
 
 # 测试接口

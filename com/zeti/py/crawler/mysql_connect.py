@@ -11,5 +11,12 @@ config = {
     'passwd': '1234567'
 }
 
+config_baidu = {
+    'host': '106.13.22.217',
+    'port': 3306,
+    'user': 'root',
+    'passwd': 'mysql123'
+}
+
 # connect
-mysql_db = MySQLDatabase('test', **config)
+mysql_db = MySQLDatabase('py_test', config_baidu)
