@@ -1,0 +1,17 @@
+package {{ package }};
+
+import org.springframework.data.mongodb.core.mapping.Document;
+
+/**
+ * @author admin
+ * @version 1.0
+ * @Description 实体类
+ * @date {{ date }}
+ */
+@Document(collection = "{{ table_name }}")
+public class {{ class_name }} {
+
+{{ propertys }}
+
+{{ methods }}
+}
