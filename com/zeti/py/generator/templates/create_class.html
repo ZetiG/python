@@ -5,61 +5,138 @@
     <title>Title</title>
 </head>
 <body>
-<form action="/createClass" method="post" datatype="application/json">
-    <div style="width: 100%; min-height: 200px; border: 0px silver solid;float: left;">
-        <div style="width: 40%;  float: left; ">
-            <h4>数据库连接信息</h4>
-            <div>IP地址:</div>
-            <input id="database_host">
-            <div>端口:</div>
-            <input id="database_port" placeholder="默认3306">
-            <div>数据库:</div>
-            <input id="database_baseName">
-            <div>用户名:</div>
-            <input id="database_userName">
-            <div>密码:</div>
-            <input id="database_password">
+<div style="width: 100%; min-height: 200px; border: 0px silver solid;float: left;">
+    <div style="width: 40%;  float: left; overflow: hidden">
+        <h4>数据库连接信息</h4>
+        <hr>
+        <div>IP地址:</div>
+        <input id="database_host">
+        <div>端口:</div>
+        <input id="database_port" placeholder="默认3306">
+        <div>数据库:</div>
+        <input id="database_baseName">
+        <div>用户名:</div>
+        <input id="database_userName">
+        <div>密码:</div>
+        <input id="database_password">
+        <br/>
+        <button type="submit" onclick="connect_databases()">点击提交</button>
+        <hr>
+
+        <div id="checkbox_outer_border">
+            <div id="dateBases">
+            </div>
         </div>
-
-        <div style="width: 60%; height: 170px; float:right;">
-            <h4>生成类的基本信息</h4>
-            <hr/>
-            <div>包路径:</div>
-            <input id="package_url" placeholder="非必填:com.xxx.xxx..."><br/>
-            <div>作者:</div>
-            <input id="author" placeholder="非必填"><br/>
-            <br>
-
-            <h4>选择需要的module</h4>
-            <hr/>
-            <input type="checkbox" value="1" name="controller" id="controller"/> Controller<br/>
-            <input type="checkbox" value="1" name="service" id="service"/> Service<br/>
-            <input type="checkbox" value="1" name="dao" id="dao"/> Dao<br/>
-            <input type="checkbox" value="1" name="entity" id="entity"/> Entity<br/>
-            <br>
-
-            <h4>选择需要的业务方法</h4>
-            <hr/>
-            <input type="checkbox" value="1" name="page" id="page"/> page<br/>
-            <input type="checkbox" value="1" name="list" id="list"/> list<br/>
-            <input type="checkbox" value="1" name="save" id="save"/> save<br/>
-            <input type="checkbox" value="1" name="update" id="update"/> update<br/>
-            <input type="checkbox" value="1" name="deleteById" id="deleteById"/> deleteById<br/>
-            <input type="checkbox" value="1" name="selectById" id="selectById"/> selectById<br/>
-            <br>
-        </div>
+        <button onclick="opcheckboxed('checkbox', 'checkall')">全选</button>
+        <button onclick="opcheckboxed('checkbox', 'uncheckall')">取消全选</button>
+        <button onclick="opcheckboxed('checkbox', 'reversecheck')">反选</button>
+        <input type='button' value='提交' onclick="commitSelectCheckBox()"/>
     </div>
-    <hr>
-    <p>
-        <input type="submit" id="commit" name="commit" value=" 提  交 " style="margin-left: 47%">
-    </p>
-</form>
-{% if msg %}
-<strong>msg:</strong> {{ msg }}
-{% endif %}
-{% if file_name %}
-<strong>下载文件:</strong> <a href="/download/{{ file_name }}">{{ file_name }}</a>
-{% endif %}
 
+    <div style="width: 60%; height: 170px; float:right; border-left: 1px solid #EEE; box-sizing: border-box">
+        <h4>生成类的基本信息</h4>
+        <hr/>
+        <div>包路径:</div>
+        <input id="package_url" placeholder="非必填:com.xxx.xxx..."><br/>
+        <div>作者:</div>
+        <input id="author" placeholder="非必填"><br/>
+        <br>
+
+        <h4>选择需要的module</h4>
+        <hr/>
+        <input type="checkbox" value="1" name="controller" id="controller"/> Controller<br/>
+        <input type="checkbox" value="1" name="service" id="service"/> Service<br/>
+        <input type="checkbox" value="1" name="dao" id="dao"/> Dao<br/>
+        <input type="checkbox" value="1" name="entity" id="entity"/> Entity<br/>
+        <br>
+
+        <h4>选择需要的业务方法</h4>
+        <hr/>
+        <input type="checkbox" value="1" name="page" id="page"/> page<br/>
+        <input type="checkbox" value="1" name="list" id="list"/> list<br/>
+        <input type="checkbox" value="1" name="save" id="save"/> save<br/>
+        <input type="checkbox" value="1" name="update" id="update"/> update<br/>
+        <input type="checkbox" value="1" name="deleteById" id="deleteById"/> deleteById<br/>
+        <input type="checkbox" value="1" name="selectById" id="selectById"/> selectById<br/>
+        <br>
+    </div>
+</div>
+
+
+<script type="text/javascript" src="../../common/jQuery.js"></script>
+<script type="text/javascript">
+    function connect_databases() {
+        var str = '';
+        $.ajax({
+            url: "http://localhost:8001/connect",
+            data: {
+                // database_host: $(" #database_host ").val(),
+                // database_port: $(" #database_port ").val(),
+                // database_baseName: $(" #database_baseName ").val(),
+                // database_userName: $(" #database_userName ").val(),
+                // database_password: $(" #database_password ").val()
+
+                database_host: "192.168.1.249",
+                database_port: "3306",
+                database_baseName: "mall_new5",
+                database_userName: "root",
+                database_password: "1234567"
+            },
+            type: "POST",
+            success: function (data) {
+                data = jQuery.parseJSON(data);
+                if (data.code != 1) {
+                    alert(data.msg)
+                }
+                // 遍历数据库，动态渲染CheckBox
+                data.data.forEach((element, index) => {
+                    str += "<input type='checkbox' name='checkbox' value='" + element + "' checked='checked' />" + element + " <br/> ";
+                })
+                $("#dateBases").html(str);
+            }
+        });
+    }
+
+    function opcheckboxed(objName, type) {
+        var objNameList = document.getElementsByName(objName);
+        if (null != objNameList) {
+            for (var i = 0; i < objNameList.length; i++) {
+                if (objNameList[i].checked == true) {
+                    if (type != 'checkall') {  // 非全选
+                        objNameList[i].checked = false;
+                    }
+
+                } else {
+                    if (type != 'uncheckall') {  // 非取消全选
+                        objNameList[i].checked = true;
+                    }
+                }
+            }
+        }
+    }
+
+    function commitSelectCheckBox() {
+        //获取所有的 checkbox 属性的 input标签
+        obj = document.getElementsByName("checkbox");
+        check_val = [];
+        for (k in obj) {
+            //判断复选框是否被选中
+            if (obj[k].checked)
+                //获取被选中的复选框的值
+                check_val.push(obj[k].value);
+        }
+        alert(check_val);
+    }
+
+
+</script>
+
+<style type="text/css">
+    #checkbox_outer_border {
+        width: 350px;
+        height: 450px;
+        overflow: scroll;
+    }
+</style>
 </body>
 </html>
