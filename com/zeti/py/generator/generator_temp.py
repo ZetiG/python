@@ -4,14 +4,12 @@ Created on 2018年7月10日
 通过模板自动生成java文件,可生成controller,service,dao,entity层等类,提供简单的list,findById,delete,save,update,page方法
 @author: JL
 """
-
+from generator_code import app
 import os
 import json
 import time
 import tarfile
 from flask import Flask, render_template, send_from_directory, request
-
-app = Flask(__name__)
 
 
 @app.route('/index')
@@ -27,7 +25,7 @@ def downloader(filename):
     return send_from_directory(dirpath, filename, as_attachment=True)
 
 
-@app.route('/createClass', methods=['GET', 'POST'])
+@app.route("/generator/code", methods=['POST'])
 def create_class():
     file_name = msg = None
     # {'column': {'age': 'int', 'id': 'String', 'address': 'String', 'name': 'String'}, 'table': 'cc_user'}
@@ -156,6 +154,3 @@ def make_targz():
         tar.add(source_dir, arcname=os.path.basename(source_dir))
     return file_name
 
-
-if __name__ == '__main__':
-    app.run()

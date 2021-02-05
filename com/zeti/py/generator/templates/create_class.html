@@ -33,36 +33,37 @@
         <input type='button' value='提交' onclick="commitSelectCheckBox()"/>
     </div>
 
-    <div style="width: 60%; height: 170px; float:right; border-left: 1px solid #EEE; box-sizing: border-box">
-        <h4>生成类的基本信息</h4>
-        <hr/>
-        <div>包路径:</div>
-        <input id="package_url" placeholder="非必填:com.xxx.xxx..."><br/>
-        <div>作者:</div>
-        <input id="author" placeholder="非必填"><br/>
-        <br>
+    <form id="form_generator_code" method="post">
+        <div style="width: 60%; height: 170px; float:right; border-left: 1px solid #EEE; box-sizing: border-box">
+            <h4>生成类的基本信息</h4>
+            <hr/>
+            <div>包路径:</div>
+            <input id="package_url" placeholder="非必填:com.xxx.xxx..."><br/>
+            <div>作者:</div>
+            <input id="author" placeholder="非必填"><br/>
+            <br>
 
-        <h4>选择需要的module</h4>
-        <hr/>
-        <input type="checkbox" value="1" name="controller" id="controller"/> Controller<br/>
-        <input type="checkbox" value="1" name="service" id="service"/> Service<br/>
-        <input type="checkbox" value="1" name="dao" id="dao"/> Dao<br/>
-        <input type="checkbox" value="1" name="entity" id="entity"/> Entity<br/>
-        <br>
+            <h4>选择需要的module</h4>
+            <hr/>
+            <input type="checkbox" value="1" name="controller" id="controller"/> Controller<br/>
+            <input type="checkbox" value="1" name="service" id="service"/> Service<br/>
+            <input type="checkbox" value="1" name="dao" id="dao"/> Dao<br/>
+            <input type="checkbox" value="1" name="entity" id="entity"/> Entity<br/>
+            <br>
 
-        <h4>选择需要的业务方法</h4>
-        <hr/>
-        <input type="checkbox" value="1" name="page" id="page"/> page<br/>
-        <input type="checkbox" value="1" name="list" id="list"/> list<br/>
-        <input type="checkbox" value="1" name="save" id="save"/> save<br/>
-        <input type="checkbox" value="1" name="update" id="update"/> update<br/>
-        <input type="checkbox" value="1" name="deleteById" id="deleteById"/> deleteById<br/>
-        <input type="checkbox" value="1" name="selectById" id="selectById"/> selectById<br/>
-        <br>
+            <h4>选择需要的业务方法</h4>
+            <hr/>
+            <input type="checkbox" value="1" name="page" id="page"/> page<br/>
+            <input type="checkbox" value="1" name="list" id="list"/> list<br/>
+            <input type="checkbox" value="1" name="save" id="save"/> save<br/>
+            <input type="checkbox" value="1" name="update" id="update"/> update<br/>
+            <input type="checkbox" value="1" name="deleteById" id="deleteById"/> deleteById<br/>
+            <input type="checkbox" value="1" name="selectById" id="selectById"/> selectById<br/>
+            <br>
+            <button id="generate">点击生成模板</button>
+        </div>
+    </form>
 
-        <button type="submit" onclick="generator_code()">点击生成模板</button>
-
-    </div>
 </div>
 
 
@@ -125,26 +126,33 @@
         alert(check_val);
     }
 
-        function generator_code() {
-        var str = '';
+    $('#generate').click(function generator_code() {
         $.ajax({
-            url: "http://localhost:8001/connect",
+            url: "http://localhost:8001/generator/code",
+            type: 'POST',
             data: {
-                database_host: $(" #package_url ").val(),
+                package_url: $("#package_url").val(),
+                author: $("#author").val(),
+                controller: check_box("controller"),
+                service: check_box("service"),
+                dao: check_box("dao"),
+                entity: check_box("entity"),
+                page: check_box("page"),
+                list: check_box("list"),
+                save: check_box("save"),
+                update: check_box("update"),
+                deleteById: check_box("deleteById"),
+                selectById: check_box("selectById")
             },
-            type: "POST",
-            success: function (data) {
-                data = jQuery.parseJSON(data);
-                if (data.code != 1) {
-                    alert(data.msg)
-                }
-                // 遍历数据库，动态渲染CheckBox
-                data.data.forEach((element, index) => {
-                    str += "<input type='checkbox' name='checkbox' value='" + element + "' checked='checked' />" + element + " <br/> ";
-                })
-                $("#dateBases").html(str);
+            dataType: "json",
+            success: function (res) {
+                console.log(res)
             }
-        });
+        })
+    })
+
+    function check_box(checkBoxId) {
+        return document.getElementById(checkBoxId).checked ? 1 : 0
     }
 
 </script>
