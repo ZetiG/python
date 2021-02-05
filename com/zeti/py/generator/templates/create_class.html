@@ -59,6 +59,9 @@
         <input type="checkbox" value="1" name="deleteById" id="deleteById"/> deleteById<br/>
         <input type="checkbox" value="1" name="selectById" id="selectById"/> selectById<br/>
         <br>
+
+        <button type="submit" onclick="generator_code()">点击生成模板</button>
+
     </div>
 </div>
 
@@ -70,17 +73,11 @@
         $.ajax({
             url: "http://localhost:8001/connect",
             data: {
-                // database_host: $(" #database_host ").val(),
-                // database_port: $(" #database_port ").val(),
-                // database_baseName: $(" #database_baseName ").val(),
-                // database_userName: $(" #database_userName ").val(),
-                // database_password: $(" #database_password ").val()
-
-                database_host: "192.168.1.249",
-                database_port: "3306",
-                database_baseName: "mall_new5",
-                database_userName: "root",
-                database_password: "1234567"
+                database_host: $(" #database_host ").val(),
+                database_port: $(" #database_port ").val(),
+                database_baseName: $(" #database_baseName ").val(),
+                database_userName: $(" #database_userName ").val(),
+                database_password: $(" #database_password ").val()
             },
             type: "POST",
             success: function (data) {
@@ -101,13 +98,13 @@
         var objNameList = document.getElementsByName(objName);
         if (null != objNameList) {
             for (var i = 0; i < objNameList.length; i++) {
-                if (objNameList[i].checked == true) {
-                    if (type != 'checkall') {  // 非全选
+                if (objNameList[i].checked === true) {
+                    if (type !== 'checkall') {  // 非全选
                         objNameList[i].checked = false;
                     }
 
                 } else {
-                    if (type != 'uncheckall') {  // 非取消全选
+                    if (type !== 'uncheckall') {  // 非取消全选
                         objNameList[i].checked = true;
                     }
                 }
@@ -128,6 +125,27 @@
         alert(check_val);
     }
 
+        function generator_code() {
+        var str = '';
+        $.ajax({
+            url: "http://localhost:8001/connect",
+            data: {
+                database_host: $(" #package_url ").val(),
+            },
+            type: "POST",
+            success: function (data) {
+                data = jQuery.parseJSON(data);
+                if (data.code != 1) {
+                    alert(data.msg)
+                }
+                // 遍历数据库，动态渲染CheckBox
+                data.data.forEach((element, index) => {
+                    str += "<input type='checkbox' name='checkbox' value='" + element + "' checked='checked' />" + element + " <br/> ";
+                })
+                $("#dateBases").html(str);
+            }
+        });
+    }
 
 </script>
 
