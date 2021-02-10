@@ -3,7 +3,7 @@ import flask
 
 from sqlalchemy import create_engine, MetaData, inspect
 from sqlalchemy.ext.declarative import declarative_base
-from flask import request,Blueprint
+from flask import request, Blueprint
 from flask_cors import CORS
 
 app = flask.Flask(__name__)
@@ -78,17 +78,29 @@ def connect():
 
 @app.route("/generator/code", methods=['POST'])
 def generator():
+    """package url"""
     package_url = request.form.get('package_url')
     author = request.form.get('author')
+
+    """module"""
     controller = request.form.get('controller')
     service = request.form.get('service')
     dao = request.form.get('dao')
     entity = request.form.get('entity')
 
-    print("package_url：{}", package_url)
-    print("author：{}", author)
-    print("controller：{}", controller)
-    return json.dumps({'msg': 'success', 'code': '1', 'data': "afghjklkjhgfds"})
+    """method"""
+    page = request.form.get('page')
+    list = request.form.get('list')
+    save = request.form.get('save')
+    update = request.form.get('update')
+    deleteById = request.form.get('deleteById')
+    selectById = request.form.get('selectById')
+
+    str = '{"package_url": ' + package_url + ', "author": ' + author + '}'
+
+    print(str)
+
+    return json.dumps({'msg': 'success', 'code': '1', 'data': str})
 
 
 if __name__ == '__main__':
