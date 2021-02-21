@@ -123,6 +123,7 @@
                 //获取被选中的复选框的值
                 check_val.push(obj[k].value);
         }
+        window.sessionStorage.setItem("select_check_box", check_val)
         alert(check_val);
     }
 
@@ -142,7 +143,8 @@
                 save: check_box("save"),
                 update: check_box("update"),
                 deleteById: check_box("deleteById"),
-                selectById: check_box("selectById")
+                selectById: check_box("selectById"),
+                selectDatabases: window.sessionStorage.getItem("select_check_box")
             },
             dataType: "json",
             success: function (res) {
