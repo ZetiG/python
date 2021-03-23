@@ -125,7 +125,7 @@ def generator():
         columns = get_database_all_tables(database_tables, tb)
         if entity == 1:
             d = time.strftime("%Y-%m-%d", time.localtime())
-            created_entity(package_url, tb, columns, 'mysql', d)
+            created_entity(package_url, author, tb, columns, 'mysql', d)
         if dao == 1:
             print('此处生成dao')
         if service == 1:
@@ -144,18 +144,26 @@ def generator():
     return json.dumps({'msg': 'success', 'code': '1', 'data': str})
 
 
-def created_entity(package, table_name, columns, db_type, date):
+def created_entity(package, author, table_name, columns, db_type, date):
     class_name = big_str(str2Hump(table_name))
 
-    propertys = ''
-    methods = ''
+    propertys = []
+
     if columns:
         for column in columns:
             type_name = column['type'].python_type.__name__
             if type_name == 'str':
                 type_name = 'String'
-            propertys += 'private %s %s;' % (type_name, column['name']) + '\n'
+            s = 'private %s %s;' % (type_name, str2Hump(column['name']))
+            pro = {}
+            pro.setdefault('property', s)
+            comment_ = column['comment']
+            if comment_ is None:
+                comment_ = str2Hump(column['name'])
+            pro.setdefault('comment', comment_)
+            propertys.append(pro)
     c = {'package': package + '.entity',
+         'author': author,
          'entity_package': package + '.entity.' + class_name,
          'class_name': class_name,
          'table_name': table_name,

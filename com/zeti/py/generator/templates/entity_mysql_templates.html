@@ -1,15 +1,25 @@
 package {{ package }};
 
+import lombok.Data;
+
 import java.io.Serializable;
 
 /**
- * @author admin
- * @version 1.0
- * @Description Mybatis 实体类
+ * Description: {{ class_name }} Mybatis 实体类
+ *
+ * @author {{ author }}
  * @date {{ date }}
+ * @version 1.0
  */
+@Data
 public class {{ class_name }} implements Serializable {
+    private static final long serialVersionUID = -1L;
 
-{{ propertys }}
+{% for property in propertys %}
+/**
+ * {{property.comment}}
+ */
+{{property.property}}
+{% endfor %}
 
 }
