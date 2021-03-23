@@ -1,5 +1,6 @@
 import json
 import flask
+import time
 
 from sqlalchemy import create_engine, MetaData, inspect
 from sqlalchemy.ext.declarative import declarative_base
@@ -10,6 +11,10 @@ import os
 app = flask.Flask(__name__)
 CORS(app, supports_credentials=True)
 CORS(app, resources=r'/*')
+
+
+"""定义全局变量，数据库所有表名"""
+database_tables = ''
 
 
 # mysql连接引擎，echo开启调试
@@ -29,11 +34,13 @@ def get_database_tables(engine):
 
 
 # 输出所有表名
-def get_database_all_tables(engine):
-    names = engine.table_names()
-    for name in names:
-        print('table: ', name)
-    return names
+def get_database_all_tables(engine, table=''):
+    inspector = inspect(engine)
+    table_names = engine.table_names()
+    for table_name in table_names:
+        if table is not None and table == table_name:
+            return inspector.get_columns(table_name)
+    return table_names
 
 
 # inspector = inspect(engine)
@@ -76,9 +83,10 @@ def connect():
     # if database_password is None or len(database_password) == 0:
     #     return json.dumps({'msg': '密码不能为空', 'code': '-1', 'data': ''})
 
+    global database_tables
     # database = connect_database(database_host, database_port, database_base_name, database_user_name, database_password)
-    database = connect_database('106.13.22.217', '3306', 'delta_medical', 'root', 'mysql123')
-    tables = get_database_all_tables(database)
+    database_tables = connect_database('106.13.22.217', '3306', 'delta_medical', 'root', 'mysql123')
+    tables = get_database_all_tables(database_tables)
     return json.dumps({'msg': 'success', 'code': '1', 'data': tables})
 
 
@@ -89,21 +97,21 @@ def generator():
     author = request.form.get('author')
 
     """module"""
-    controller = request.form.get('controller')
-    service = request.form.get('service')
-    dao = request.form.get('dao')
-    entity = request.form.get('entity')
+    controller = int(request.form.get('controller'))
+    service = int(request.form.get('service'))
+    dao = int(request.form.get('dao'))
+    entity = int(request.form.get('entity'))
 
-    if controller == 0 & service == 0 & dao == 0 & entity == 0:
+    if controller == 0 and service == 0 and dao == 0 and entity == 0:
         return json.dumps({'msg': '请至少选择一个需要生成的module', 'code': '-1', 'data': ''})
 
     """method"""
-    page = request.form.get('page')
-    list = request.form.get('list')
-    selectById = request.form.get('selectById')
-    save = request.form.get('save')
-    update = request.form.get('update')
-    deleteById = request.form.get('deleteById')
+    page = int(request.form.get('page'))
+    list = int(request.form.get('list'))
+    selectById = int(request.form.get('selectById'))
+    save = int(request.form.get('save'))
+    update = int(request.form.get('update'))
+    deleteById = int(request.form.get('deleteById'))
 
     """select databases"""
     databases = request.form.get('selectDatabases')
@@ -113,14 +121,51 @@ def generator():
         return json.dumps({'msg': '请至少选择一个需要生成的表', 'code': '-1', 'data': ''})
 
     split = databases.split(",")
-    for i in split:
-        print(i)
+    for tb in split:
+        columns = get_database_all_tables(database_tables, tb)
+        if entity == 1:
+            d = time.strftime("%Y-%m-%d", time.localtime())
+            created_entity(package_url, tb, columns, 'mysql', d)
+        if dao == 1:
+            print('此处生成dao')
+        if service == 1:
+            print('此处生成service')
+        if controller == 1:
+            print('此处生成controller')
+
+        # tableName = str2Hump(i)
+        # content = render_template('entity_mysql_templates.html', **c)
+        # create_file(tableName[0].upper() + tableName[1:], i, content)
 
     str = '{"package_url": ' + package_url + ', "author": ' + author + ', "databases": ' + databases + '}'
 
     print(str)
 
     return json.dumps({'msg': 'success', 'code': '1', 'data': str})
+
+
+def created_entity(package, table_name, columns, db_type, date):
+    class_name = big_str(str2Hump(table_name))
+
+    propertys = ''
+    methods = ''
+    if columns:
+        for column in columns:
+            type_name = column['type'].python_type.__name__
+            if type_name == 'str':
+                type_name = 'String'
+            propertys += 'private %s %s;' % (type_name, column['name']) + '\n'
+    c = {'package': package + '.entity',
+         'entity_package': package + '.entity.' + class_name,
+         'class_name': class_name,
+         'table_name': table_name,
+         'propertys': propertys,
+         'date': date}
+    if db_type == 'mysql':
+        s = render_template('entity_mysql_templates.html', **c)
+        create_file(class_name, package + '.entity', s)
+        s = render_template('entity_mysql_mapper_templates.html', **c)
+        create_file(class_name, package + '.entity', s, 'Mapper.xml')
 
 
 # 创建java文件
@@ -132,6 +177,37 @@ def create_file(class_name, package, content, suffix='.java'):
     os.write(fd, content.encode(encoding="utf-8", errors="strict"))
     os.close(fd)
 
+
+# 下划线转驼峰
+def str2Hump(table_name):
+    arr = filter(None, table_name.lower().split('_'))
+    res = ''
+    j = 0
+    for i in arr:
+        if j == 0:
+            res = i
+        else:
+            res = res + i[0].upper() + i[1:]
+        j += 1
+    return res
+
+
+# 将首字母转换为大写
+def big_str(s):
+    if len(s) <= 1:
+        return s
+    return (s[0:1]).upper() + s[1:]
+
+
+# 将首字母转换为小写
+def small_str(s):
+    if len(s) <= 1:
+        return s
+    return (s[0:1]).lower() + s[1:]
+
+
 if __name__ == '__main__':
-    # app.run(debug=True, port=8001, host='localhost')
-    create_file('test', 'package', 'text')
+    app.run(debug=True, port=8001, host='localhost')
+    # create_file('test', 'package', 'text')
+    # print(str2Hump('table_aa_bb_c'))
+    # print(str2Hump('table_aa_bb_c')[0].upper() + str2Hump('table_aa_bb_c')[1:])
