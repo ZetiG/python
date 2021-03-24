@@ -124,10 +124,10 @@ def generator():
     for tb in split:
         columns = get_database_all_tables(database_tables, tb)
         if entity == 1:
-            d = time.strftime("%Y-%m-%d", time.localtime())
-            created_entity(package_url, author, tb, columns, 'mysql', d)
+            date = time.strftime("%Y-%m-%d", time.localtime())
+            created_entity(package_url, author, tb, columns, 'mysql', date)
         if dao == 1:
-            print('此处生成dao')
+            created_dao(package_url, author, tb, date)
         if service == 1:
             print('此处生成service')
         if controller == 1:
@@ -146,9 +146,22 @@ def generator():
 
 def created_entity(package, author, table_name, columns, db_type, date):
     class_name = big_str(str2Hump(table_name))
+    '''实体类生成
 
+    根据表字段生成具体实体类
+
+    Args:
+        package (str): 生成实体类的包路径
+        author (str): 作者
+        table_name (str): 需要生成的表名
+        columns (columns): 表字段
+        db_type (str): 数据库类型
+        db_type (str): 数据库类型
+
+    Returns:
+        file : 生成.java文件
+    '''
     propertys = []
-
     if columns:
         for column in columns:
             type_name = column['type'].python_type.__name__
@@ -165,8 +178,8 @@ def created_entity(package, author, table_name, columns, db_type, date):
     c = {'package': package + '.entity',
          'author': author,
          'entity_package': package + '.entity.' + class_name,
-         'class_name': class_name,
          'table_name': table_name,
+         'class_name': class_name,
          'propertys': propertys,
          'date': date}
     if db_type == 'mysql':
@@ -174,6 +187,18 @@ def created_entity(package, author, table_name, columns, db_type, date):
         create_file(class_name, package + '.entity', s)
         s = render_template('entity_mysql_mapper_templates.html', **c)
         create_file(class_name, package + '.entity', s, 'Mapper.xml')
+
+
+def created_dao(package, author, table_name, date):
+    class_name = big_str(str2Hump(table_name))
+    c = {'package': package + '.dao',
+         'author': author,
+         'entity_package': package + '.dao.' + class_name,
+         'table_name': table_name,
+         'class_name': class_name,
+         'date': date}
+    s = render_template('dao_templates.html', **c)
+    create_file(class_name, package + '.dao', s, 'Dao.java')
 
 
 # 创建java文件

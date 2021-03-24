@@ -1,20 +1,57 @@
 package {{ package }};
 
-import org.springframework.stereotype.Repository;
-
-import com.kauto.market.ds.mongo.BaseMarketMongoDaoImpl;
+import {{ package }}.BaseDao;
 import {{ entity_package }};
 
- /**
- * @Description 数据库访问类
- * @author admin
- * @version V1.0
- * @since V1.0
- * @date {{ date }}
+/**
+ * Description: {{ class_name }} 数据库操作类
  *
+ * @author {{ author }}
+ * @date {{ date }}
+ * @version 1.0
  */
-@Repository
-public class {{ class_name }}Dao extends BaseMarketMongoDaoImpl<{{ class_name }} , String> {
+public class {{ class_name }}Dao extends BaseDao<{{ class_name }}, Long> {
+
+
+    /**
+     * 分页查询
+     *
+     * @param objectMap
+     * @return
+     */
+    List<{{ class_name }}> pageList(Map<String, Object> objectMap);
+
+    /**
+     * 根据id查询详情
+     *
+     * @param id
+     * @return
+     */
+    {{ class_name }} selectById(@Param("id") Long id);
+
+    /**
+     * 新增
+     *
+     * @param obj
+     * @return
+     */
+    int insert({{ class_name }} obj);
+
+    /**
+     * 编辑
+     *
+     * @param obj
+     * @return
+     */
+    int update({{ class_name }} obj);
+
+    /**
+     * 删除
+     *
+     * @param id
+     * @return
+     */
+    int deleteById(@Param("id") Long id);
 
 
 }
