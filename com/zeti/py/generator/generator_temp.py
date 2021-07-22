@@ -1,8 +1,8 @@
 # -*- coding: UTF-8 -*-
 """
-Created on 2018年7月10日
+Created on 2020年7月10日
 通过模板自动生成java文件,可生成controller,service,dao,entity层等类,提供简单的list,findById,delete,save,update,page方法
-@author: JL
+@author: Zeti
 """
 from generator_code import app
 import os
