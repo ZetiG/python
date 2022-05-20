@@ -18,6 +18,9 @@ headers = {
 }
 proxies = {'http': '115.223.245.117:9000'}
 
+conn = pymysql.connect(host='106.13.22.217', port=3306, user='root', passwd='root123', db='python_proxy')
+cursor = conn.cursor()
+
 
 def proxies_switch(url):
     print("正在进行ip的切换...")
@@ -32,11 +35,12 @@ def proxies_switch(url):
         post = items[0][1]
         ip_post = ip + ":" + post
         response = requests.get(url, proxies={'http': ip_post})
-        status = response.ok
+        status = response.ok and response.url.split('?')[0] == url
         ip_num = ip_num + 1
     proxies['http'] = ip_post
     print("第%ds个ip地址测试成功" % ip_num)
     time.sleep(0.5)  # 切换成功之后sleep一秒 防止新的ip_post被封
+    return {'http': ip_post}
 
 
 def reptile_ip(proxy_url):
@@ -62,8 +66,8 @@ def reptile_ip(proxy_url):
 
 if __name__ == "__main__":
     url = base_url
-    conn = pymysql.connect(host='106.13.22.217', port=3306, user='root', passwd='root123', db='python_proxy')
-    cursor = conn.cursor()
+    # conn = pymysql.connect(host='106.13.22.217', port=3306, user='root', passwd='root123', db='python_proxy')
+    # cursor = conn.cursor()
     cursor.execute("drop table if exists proxy_ip")
     create_table = """create table proxy_ip(
     id integer NOT NULL auto_increment PRIMARY KEY,

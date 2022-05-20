@@ -2,9 +2,11 @@ import configparser
 import json
 import logging
 import os
+import urllib.parse
 import requests
 from fake_useragent import UserAgent
 from get_proxy_ip import proxies_switch
+from bs4 import BeautifulSoup
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,7 +32,7 @@ headers = {
 }
 
 # 代理ip
-proxies = {'http': '115.223.245.117:9000'}
+proxies = {'http': '114.24.112.55:8088'}
 
 
 # 安居客，根据小区名称查询小区id
@@ -61,6 +63,8 @@ def read_shop_community_file():
 def get_ajk_community_code(community_name):
     logging.info('调用安居客api，查询并返回小区对应安居客内的编码，小区名称:[%s]', community_name)
 
+    global proxies
+
     ajk_url = 'https://hangzhou.anjuke.com/esf-ajax/community/pc/autocomplete'
     param = {
         'city_id': 18,
@@ -68,22 +72,33 @@ def get_ajk_community_code(community_name):
         'type': 2
     }
 
-    response = requests.get(ajk_url, param, headers=headers, proxies=proxies)
+    response = requests.get(ajk_url, urllib.parse.urlencode(param), headers=headers, proxies=proxies)
     if response.ok is False:
         proxies_switch(ajk_url)
     if response.status_code == 200 and json.loads(response.text)['status'] == 'ok':
         data = json.loads(response.text)['data']
         if data is None or len(data) <= 0:
-            logging.info('调用安居客api，查询并返回小区对应安居客内的编码为空，再次根据名称进行模糊匹配')
+            logging.info('调用安居客api，查询并返回小区对应安居客内的编码为空，根据名称进行模糊匹配, 小区:[%s]', community_name)
 
             url = 'https://hangzhou.anjuke.com/community/'
             param = {
                 'kw': community_name
             }
-            resp = requests.get(url, param, headers=headers, proxies=proxies)
-            if resp.ok is False:
-                proxies_switch(url)
-            print(resp)
+
+            while True:
+                resp = requests.get(url, urllib.parse.urlencode(param), headers=headers, proxies=proxies)
+                if resp.ok is False or resp.url.split('?')[0] != url:
+                    proxies = proxies_switch(url)
+                    continue
+                break
+
+            soup = BeautifulSoup(resp.text, 'lxml')
+            find_all = soup.find_all('a', attrs={'class': 'li-row'})
+            if find_all is not None and len(find_all) > 0:
+                href_ = find_all[0]['href']
+                logging.info('模糊匹配到该小区，小区:[%s], 连接:[%s]', community_name, href_)
+            else:
+                logging.info('暂未搜索到该小区信息，小区:[%s]', community_name)
             return
 
         if data[0] is not None and len(data[0]) > 0 and data[0]['id'] is not None:
