@@ -8,6 +8,12 @@ from fake_useragent import UserAgent
 from get_proxy_ip import proxies_switch
 from bs4 import BeautifulSoup
 
+# 安居客，根据小区名称查询小区id
+# https://hangzhou.anjuke.com/esf-ajax/community/pc/autocomplete?city_id=18&kw=%E9%98%B3%E5%85%89%E5%9F%8E%E7%BF%A1%E4%B8%BD%E5%85%AC%E5%9B%AD&type=2
+# https://hangzhou.anjuke.com/community/?kw=%E9%A1%BA%E5%8F%91%C2%B7%E6%81%92%E5%9B%AD
+# 安居客，根据小区id查询小区具体信息
+# https://hangzhou.anjuke.com/community/view/1032464
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -18,28 +24,31 @@ fake_ua = UserAgent(path=path).random
 logger.info('当前UserAgent:[%s]', fake_ua)
 
 headers = {
-    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-    "accept-encoding": "gzip, deflate, br",
-    "accept-language": "zh-CN,zh;q=0.9",
-    "cache-control": "max-age=0",
-    "cookie": "hng=CN%7Czh-CN%7CCNY%7C156; cookie2=117413313358c473a06b1ea9d24b6487; t=102f78e2d4a2f9f2dc8c6259ad4ca8c1; _tb_token_=148378ea7bef; tk_trace=1; cna=24tMGKtosBwCAXrgVzLq1KDL; xlly_s=1; _l_g_=Ug%3D%3D; login=true; dnk=%5Cu6ED5%5Cu5C0F%5Cu57640201; tracknick=%5Cu6ED5%5Cu5C0F%5Cu57640201; lid=%E6%BB%95%E5%B0%8F%E5%9D%A40201; unb=2298381582; lgc=%5Cu6ED5%5Cu5C0F%5Cu57640201; cookie1=BxFiWWXK9Sab0g1DuJKtNZb1O790waHNoOEEDvQUbX8%3D; cookie17=UUpoZCVnvh283Q%3D%3D; _nk_=%5Cu6ED5%5Cu5C0F%5Cu57640201; sg=122; sm4=330109; csa=8047484560_0_30.172406.120.232747_0_0_0; uc1=existShop=false&cookie15=UIHiLt3xD8xYTw%3D%3D&cookie16=UtASsssmPlP%2Ff1IHDsDaPRu%2BPw%3D%3D&cookie14=Uoe1gqgl3KCCgQ%3D%3D&pas=0&cookie21=URm48syIYB3rzvI4Dim4; uc3=id2=UUpoZCVnvh283Q%3D%3D&nk2=iNE6uNDRfR85Qw%3D%3D&lg2=URm48syIIVrSKA%3D%3D&vt3=F8dCuAAj3fKyDiW7K0c%3D; uc4=nk4=0%40irOKlXRaqzdSZEhA00yifq6SHZDS&id4=0%40U2giSSnvpZu8RVW3%2F7a8yPd75NV6; sgcookie=E100PsYHmXhsOsB%2BUHPhK0QU%2BPK5gssytX6G8vsdBhwdxa6kDu1Bjn9hCkNio0hbDYnxWTMxTUhwTfTZr3aIwcHS6A%3D%3D; csg=0de5f4b9; _m_h5_tk=3cecb72211e66e129d587a6f2a2c2543_1610078471151; _m_h5_tk_enc=e7656a4d8ad931050b2487e656383f76; enc=GRCSL6EUu7pgi1vmFgQoGnDs6A5P92jGW1PhR2x4QiJ8mBNRApjWshHHw1kKBDQ9iAFXGe27lP%2FDiXLdfiQ9vQ%3D%3D; tfstk=ckadBFqQ0OX36vcTgkIMV-YnLKURaYX-CBMkysSkNbf1HKdJNsvborzoqMGWpVCO.; l=eB_iD0oHO7aCW63oBOfZlurza779JIRAguPzaNbMiOCP9UC65EZGWZ8oyz8BCnGVhs9HR3JsgJC4BeYBqCYQ5O976PnzJPkmn; isg=BBcXP6FjBJl2m4AOe-D7DldMpothXOu-YetUQ2lEBuZNmDfacSgPDr-y-jiGcMM2",
-    "referer": "https://login.taobao.com/member/login.jhtml?tpl_redirect_url=https%3A%2F%2Fchaoshi.tmall.com%2F%3Fspm%3D875.7931836%2FB.2016004.1.259042651AgjZx%26acm%3Dlb-zebra-148799-667861.1003.4.2429983%26scm%3D1003.4.lb-zebra-148799-667861.OTHER_14561837688591_2429983&style=miniall&enup=true&newMini2=true&full_redirect=true&sub=true&from=tmall&allp=assets_css%3D3.0.10/login_pc.css&pms=1610070891179",
-    "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "none",
-    "sec-fetch-user": "?1",
-    "upgrade-insecure-requests": "1",
-    "user-agent": fake_ua,
+    ':authority': 'hangzhou.anjuke.com',
+    'accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9',
+    'accept-encoding': 'gzip',
+    'accept-language': 'zh-CN,zh;q=0.9',
+    'cache-control': 'max-age=0',
+    'cookie': 'aQQ_ajkguid=7E7059E3-A8A7-4994-14CA-9E6BE6E5D5E9; ctid=18; wmda_uuid=e5da125b3345ee6d4e5a09ea78d31c09; wmda_new_uuid=1; wmda_visited_projects=%3B6289197098934; id58=CpQMQ2JtC5Y/DbwstoReAg==; 58tj_uuid=f1039db5-80cd-4036-b650-a394364e532a; _ga=GA1.2.1398758582.1651313558; als=0; isp=true; cmctid=79; sessid=A3A85D36-6B18-7E3F-0224-FD2FBB0D8FFF; twe=2; _gid=GA1.2.1550625655.1652954225; ajk_member_captcha=725f14718939fb1b3c2ab994ba2e11e4; fzq_js_anjuke_jingjiren_pc=9a6e870b19407a415a0e19f3a212d532_1653040607426_25; fzq_h=052e2bcc62a164a5039f0e7a919e4002_1653040900982_1c17b54a64ae47e29915e24e7d17cec9_2061522738; fzq_js_anjuke_ershoufang_pc=76bb80b0c1ab2fb1b285c439e70b8ec5_1653041805376_24; ajk-appVersion=; obtain_by=2; fzq_js_anjuke_xiaoqu_pc=e651dfaea3e7a046018c27eaea2ec639_1653042593908_23; new_session=1; init_refer=https%253A%252F%252Fhangzhou.anjuke.com%252F; new_uv=8; _gat=1; xxzl_cid=3288c8238883454abbd0c2c82815bc7d; xzuid=06ca0d5e-0292-447e-b2be-4425ebd8ae33',
+    'referer': 'https://www.anjuke.com/',
+    'sec-fetch-mode': 'navigate',
+    'sec-fetch-site': 'none',
+    'sec-fetch-user': '?1',
+    'upgrade-insecure-requests': '1',
+    'user-agent': fake_ua,
 }
 
-# 代理ip
-proxies = {'http': '114.24.112.55:8088'}
+# 代理ip, 这里随机设置一个，下面调用时会自动根据代理ip库查找一个可用ip
+proxies = {'http': '183.247.199.126:30001'}
 
-
-# 安居客，根据小区名称查询小区id
-# https://hangzhou.anjuke.com/esf-ajax/community/pc/autocomplete?city_id=18&kw=%E9%98%B3%E5%85%89%E5%9F%8E%E7%BF%A1%E4%B8%BD%E5%85%AC%E5%9B%AD&type=2
-# https://hangzhou.anjuke.com/community/?kw=%E9%A1%BA%E5%8F%91%C2%B7%E6%81%92%E5%9B%AD
-# 安居客，根据小区id查询小区具体信息
-# https://hangzhou.anjuke.com/community/view/1032464
+# 小区信息所需字段字典
+community_info_dict = {
+    '物业类型': 'properties_types',
+    '竣工时间': 'completion_time',
+    '总户数': 'total_houses',
+    '物业费': 'property_costs',
+    '物业公司': 'property_company'
+}
 
 
 # 读取并返回小店周边业态输出文件
@@ -55,8 +64,14 @@ def read_shop_community_file():
             if cm_name is None or len(cm_name) <= 0:
                 continue
 
-            # 调用安居客api，查询小区对应安居客内的编码
-            get_ajk_community_code(cm_name)
+            # 调用安居客api，查询小区对应安居客内的编码、平方单价
+            community_id, community_price = get_ajk_community_code(cm_name)
+
+            # 爬取小区的基本信息
+            community_info = get_attr_detail_by_id(community_id)
+
+            # 构建入库对象
+            build_shop_community_obj(community, community_price, community_info)
 
 
 # 调用安居客api，查询并返回小区对应安居客内的编码
@@ -92,19 +107,97 @@ def get_ajk_community_code(community_name):
                     continue
                 break
 
+            community_code = None
             soup = BeautifulSoup(resp.text, 'lxml')
             find_all = soup.find_all('a', attrs={'class': 'li-row'})
-            if find_all is not None and len(find_all) > 0:
-                href_ = find_all[0]['href']
-                logging.info('模糊匹配到该小区，小区:[%s], 连接:[%s]', community_name, href_)
+            if find_all is not None and len(find_all) > 0 and find_all[0]['href'] is not None:
+                community_code = find_all[0]['href'].split('/')[-1]
+                logging.info('模糊匹配到该小区，小区名称:[%s], 小区编码:[%s]', community_name, community_code)
             else:
                 logging.info('暂未搜索到该小区信息，小区:[%s]', community_name)
-            return
+            return community_code
 
         if data[0] is not None and len(data[0]) > 0 and data[0]['id'] is not None:
             logging.info('调用安居客api，查询并返回小区对应安居客内的编码，小区名称:[%s] 小区编码:[%s]', community_name, data[0]['id'])
-            return data[0]['id']  # price 拓展可获取小区房价
+            return data[0]['id'], data[0]['price']  # id:小区安居客id，price:小区房价
+
+
+# 调用安居客api, 通过小区id查询详情 https://hangzhou.anjuke.com/community/view/1032464
+def get_attr_detail_by_id(community_id):
+    logging.info('调用安居客api, 通过小区id查询详情start... 小区id:[%s]', community_id)
+    global proxies
+
+    url = 'https://hangzhou.anjuke.com/community/view/' + community_id
+    response = requests.get(url, headers=headers, proxies=proxies)
+
+    while True:
+        if response.ok is False or response.url.split('?')[0] != url:
+            proxies = proxies_switch(url)
+            continue
+        break
+
+    # 正常返回，得到详情页，解析
+    soup = BeautifulSoup(response.text, 'lxml')
+    soup_find_all = soup.find_all('div', attrs={'class': 'label'})
+    if soup_find_all is None or len(soup_find_all) <= 0:
+        return
+
+    community_info = CommunityInfo
+    community_info.community_id = community_id
+    # 遍历所有属性，取所需要的字段
+    for soup in soup_find_all:
+        content_key = soup.text
+
+        # 判断属性是否是所需信息
+        if content_key is not None and content_key in community_info_dict.keys():
+            content_val = soup.next_element.next_element.next_element.next_element.next_element.text
+            content_val = content_val.replace(' ', '').replace('\n', '').replace('\r', '')
+
+            # 查询类内是否包含该属性，并赋值
+            community_info.set_attr_val(community_info, community_info_dict.get(content_key), content_val)
+
+    return community_info
+
+
+# 组装入库数据
+def build_shop_community_obj(community_gaode_dict: json, community_price, community_info):
+    community_gaode_dict['name']
+    community_gaode_dict['location']
+    community_gaode_dict['pname']
+    community_gaode_dict['cityname']
+    community_gaode_dict['adname']
+    community_gaode_dict['address']
+
+    # todo
+
+    pass
+
+
+# 小区信息
+class CommunityInfo:
+    # 小区对象安居客内id
+    community_id = None
+    # 物业类型: 公寓住宅
+    properties_types = None
+    # 竣工时间: 2018年
+    completion_time = None
+    # 总户数: 1016户
+    total_houses = None
+    # 物业费:  1.50元/平米/月
+    property_costs = None
+    # 物业公司
+    property_company = None
+
+    def __init__(self):
+        pass
+
+    # 判断对象是否包含该属性，并赋值
+    def set_attr_val(self, attr, val):
+        if hasattr(self, attr):
+            setattr(self, attr, val)
 
 
 if __name__ == '__main__':
-    read_shop_community_file()
+    # read_shop_community_file()
+
+    print(get_attr_detail_by_id('1067956'))

@@ -4,12 +4,12 @@ import requests
 from bs4 import BeautifulSoup
 import pymysql
 import time
+from configparser import ConfigParser
 
 '''
 爬取(快代理)免费代理ip
 '''
 
-global ip_num
 ip_num = 1
 base_url = "https://www.kuaidaili.com/free/inha/"
 headers = {
@@ -18,7 +18,17 @@ headers = {
 }
 proxies = {'http': '115.223.245.117:9000'}
 
-conn = pymysql.connect(host='106.13.22.217', port=3306, user='root', passwd='root123', db='python_proxy')
+# 读取数据库配置
+parser = ConfigParser()
+parser.read('base_config.cfg')
+host = parser.get('spider_sql_conf', 'host')
+port = parser.get('spider_sql_conf', 'port')
+user = parser.get('spider_sql_conf', 'user')
+passwd = parser.get('spider_sql_conf', 'passwd')
+db = parser.get('spider_sql_conf', 'db')
+
+# 数据库连接
+conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
 cursor = conn.cursor()
 
 
