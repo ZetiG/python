@@ -1,10 +1,13 @@
 #!/usr/bin/env python
 # -*- coding:utf-8 -*-
+import os
+import random
 import requests
 from bs4 import BeautifulSoup
 import pymysql
 import time
 from configparser import ConfigParser
+from fake_useragent import UserAgent
 
 '''
 爬取(快代理)免费代理ip
@@ -37,14 +40,19 @@ def proxies_switch(req_url, req_headers):
     global ip_num, ip_post
     status = False
     while status is False:  # 找到合适的ip——post地址
-        print("正在验证第%s个ip地址" % (ip_num))
         sql = "select ip,post from proxy_ip where id = %s" % (ip_num)
         cursor.execute(sql)
         items = cursor.fetchall()
         ip = items[0][0]
         post = items[0][1]
         ip_post = ip + ":" + post
-        response = requests.get(req_url, headers=req_headers, proxies={'http': ip_post})
+        print("正在验证第{0}个ip地址: {1}".format(ip_num, ip_post))
+
+        # 测试请求连通性
+        time.sleep(random.randint(3, 5))  # 暂停3~5秒的整数秒，时间区间：[3,5]
+        headers['user-agent'] = UserAgent(path=os.path.join('', 'fake_ua.json')).random
+        response = requests.get(req_url, headers=req_headers, proxies={'http': ip_post}, timeout=30)
+
         status = response.ok and response.url.split('?')[0] == req_url
         ip_num = ip_num + 1
     proxies['http'] = ip_post

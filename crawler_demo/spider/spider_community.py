@@ -2,6 +2,8 @@ import configparser
 import json
 import logging
 import os
+import random
+import time
 import urllib.parse
 import requests
 from fake_useragent import UserAgent
@@ -14,27 +16,19 @@ from bs4 import BeautifulSoup
 # 安居客，根据小区id查询小区具体信息
 # https://hangzhou.anjuke.com/community/view/1032464
 
-logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # 随机UA
-path = os.path.join('', 'fake_ua.json')
-# path 为你放置 fake_ua.json文件路径
-fake_ua = UserAgent(path=path).random
-logger.info('当前UserAgent:[%s]', fake_ua)
-
 headers = {
-    "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
-    "accept-encoding": "gzip",
+    "accept": "application/json, text/plain, */*",
+    "accept-encoding": "gzip, deflate, br",
     "accept-language": "zh-CN,zh;q=0.9",
     "cache-control": "max-age=0",
-    "cookie": "aQQ_ajkguid=7E7059E3-A8A7-4994-14CA-9E6BE6E5D5E9; ctid=18; wmda_uuid=e5da125b3345ee6d4e5a09ea78d31c09; wmda_new_uuid=1; wmda_visited_projects=%3B6289197098934; id58=CpQMQ2JtC5Y/DbwstoReAg==; 58tj_uuid=f1039db5-80cd-4036-b650-a394364e532a; _ga=GA1.2.1398758582.1651313558; als=0; isp=true; cmctid=79; sessid=A3A85D36-6B18-7E3F-0224-FD2FBB0D8FFF; twe=2; _gid=GA1.2.1550625655.1652954225; ajk_member_captcha=725f14718939fb1b3c2ab994ba2e11e4; fzq_js_anjuke_jingjiren_pc=9a6e870b19407a415a0e19f3a212d532_1653040607426_25; fzq_h=052e2bcc62a164a5039f0e7a919e4002_1653040900982_1c17b54a64ae47e29915e24e7d17cec9_2061522738; fzq_js_anjuke_ershoufang_pc=76bb80b0c1ab2fb1b285c439e70b8ec5_1653041805376_24; ajk-appVersion=; obtain_by=2; fzq_js_anjuke_xiaoqu_pc=e651dfaea3e7a046018c27eaea2ec639_1653042593908_23; new_session=1; init_refer=https%253A%252F%252Fhangzhou.anjuke.com%252F; new_uv=8; _gat=1; xxzl_cid=3288c8238883454abbd0c2c82815bc7d; xzuid=06ca0d5e-0292-447e-b2be-4425ebd8ae33",
-    "referer": "https://www.anjuke.com/",
-    "sec-fetch-mode": "navigate",
-    "sec-fetch-site": "none",
-    "sec-fetch-user": "?1",
-    "upgrade-insecure-requests": "1",
-    "user-agent": fake_ua,
+    # "cookie": "aQQ_ajkguid=7E7059E3-A8A7-4994-14CA-9E6BE6E5D5E9; ctid=18; wmda_uuid=e5da125b3345ee6d4e5a09ea78d31c09; wmda_new_uuid=1; wmda_visited_projects=%3B6289197098934; id58=CpQMQ2JtC5Y/DbwstoReAg==; 58tj_uuid=f1039db5-80cd-4036-b650-a394364e532a; _ga=GA1.2.1398758582.1651313558; als=0; isp=true; cmctid=79; sessid=A3A85D36-6B18-7E3F-0224-FD2FBB0D8FFF; twe=2; _gid=GA1.2.1550625655.1652954225; ajk_member_captcha=725f14718939fb1b3c2ab994ba2e11e4; fzq_js_anjuke_jingjiren_pc=9a6e870b19407a415a0e19f3a212d532_1653040607426_25; fzq_h=052e2bcc62a164a5039f0e7a919e4002_1653040900982_1c17b54a64ae47e29915e24e7d17cec9_2061522738; fzq_js_anjuke_ershoufang_pc=76bb80b0c1ab2fb1b285c439e70b8ec5_1653041805376_24; ajk-appVersion=; obtain_by=2; fzq_js_anjuke_xiaoqu_pc=e651dfaea3e7a046018c27eaea2ec639_1653042593908_23; new_session=1; init_refer=https%253A%252F%252Fhangzhou.anjuke.com%252F; new_uv=8; _gat=1; xxzl_cid=3288c8238883454abbd0c2c82815bc7d; xzuid=06ca0d5e-0292-447e-b2be-4425ebd8ae33",
+    "cookie": "aQQ_ajkguid=7D40324D-4939-71A5-0DAD-1548907261DE; ctid=18; obtain_by=1; twe=2; fzq_js_anjuke_ershoufang_pc=2d93a3ce684037ba87a45808b43e27fc_1653124207867_23; xxzl_cid=b871a12f5a9b450e82307d87fdbb6a20; xzuid=87131526-9c17-496d-93fb-eeb3291a2d1e; fzq_h=11bf6f372adff459bd8df621fcfabc92_1653124180103_65a87ca01a334ade879d6bb7a70319c3_2061522738; wmda_session_id_6289197098934=1653124171935-03af4c16-ca6a-3500; 58tj_uuid=fb95c23f-ca46-4d9c-9245-ec42e607d87d; _ga=GA1.2.2074581672.1653034187; _gid=GA1.2.1810825487.1653124172; init_refer=; new_session=0; new_uv=2; _gat=1; sessid=7C51EF0C-5595-4CB4-ADA9-0D78C842362F; ajk-appVersion=; als=0; id58=CocDiGKHTMuvj36ZA9tWAg==; wmda_new_uuid=1; wmda_uuid=56bac6a928b804dcab9b1e3e3cdc188f; wmda_visited_projects=%3B6289197098934",
+    "referer": "https://hangzhou.anjuke.com/sale/rd1/?q=%E6%96%B0%E4%B8%BD%E5%90%8D%E8%8B%91",
+    "user-agent": UserAgent(path=os.path.join('', 'fake_ua.json')).random,  # path 为你放置 fake_ua.json文件路径
 }
 
 # 代理ip, 这里随机设置一个，下面调用时会自动根据代理ip库查找一个可用ip
@@ -85,14 +79,19 @@ def get_ajk_community_code(community_name):
         'kw': community_name,
         'type': 2
     }
-
-    response = requests.get(ajk_url, urllib.parse.urlencode(param), headers=headers, proxies=proxies)
+    time.sleep(random.randint(3, 5))  # 暂停3~5秒的整数秒，时间区间：[3,5]
+    headers['user-agent'] = UserAgent(path=os.path.join('', 'fake_ua.json')).random
+    response = requests.get(ajk_url, urllib.parse.urlencode(param), headers=headers, proxies=proxies,
+                            timeout=30)
 
     while True:
         if response.ok is False or response.url.split('?')[0] != ajk_url:
             proxies = proxies_switch(ajk_url, headers)
             # 得到可用IP,再次重试
-            response = requests.get(ajk_url, headers=headers, proxies=proxies)
+            time.sleep(random.randint(3, 5))  # 暂停3~5秒的整数秒，时间区间：[3,5]
+            headers['user-agent'] = UserAgent(path=os.path.join('', 'fake_ua.json')).random
+            response = requests.get(ajk_url, urllib.parse.urlencode(param), headers=headers, proxies=proxies,
+                                    timeout=30)
         else:
             break
 
@@ -106,12 +105,17 @@ def get_ajk_community_code(community_name):
             param = {
                 'kw': community_name
             }
-            resp = requests.get(url, urllib.parse.urlencode(param), headers=headers, proxies=proxies)
+            time.sleep(random.randint(3, 5))  # 暂停3~5秒的整数秒，时间区间：[3,5]
+            headers['user-agent'] = UserAgent(path=os.path.join('', 'fake_ua.json')).random
+            resp = requests.get(url, urllib.parse.urlencode(param), headers=headers, proxies=proxies, timeout=30)
 
             while True:
                 if resp.ok is False or resp.url.split('?')[0] != url:
                     proxies = proxies_switch(url, headers)
-                    resp = requests.get(url, urllib.parse.urlencode(param), headers=headers, proxies=proxies)
+                    time.sleep(random.randint(3, 5))  # 暂停3~5秒的整数秒，时间区间：[3,5]
+                    headers['user-agent'] = UserAgent(path=os.path.join('', 'fake_ua.json')).random
+                    resp = requests.get(url, urllib.parse.urlencode(param), headers=headers, proxies=proxies,
+                                        timeout=30)
                 else:
                     break
 
@@ -139,13 +143,17 @@ def get_attr_detail_by_id(community_id, community_price):
     global proxies
 
     url = 'https://hangzhou.anjuke.com/community/view/' + str(community_id)
-    response = requests.get(url, headers=headers, proxies=proxies)
+    time.sleep(random.randint(3, 5))  # 暂停3~5秒的整数秒，时间区间：[3,5]
+    headers['user-agent'] = UserAgent(path=os.path.join('', 'fake_ua.json')).random
+    response = requests.get(url, headers=headers, proxies=proxies, timeout=30)
 
     while True:
         if response.ok is False or response.url.split('?')[0] != url:
             proxies = proxies_switch(url, headers)
             # 得到可用IP,再次重试
-            response = requests.get(url, headers=headers, proxies=proxies)
+            time.sleep(random.randint(3, 5))  # 暂停3~5秒的整数秒，时间区间：[3,5]
+            headers['user-agent'] = UserAgent(path=os.path.join('', 'fake_ua.json')).random
+            response = requests.get(url, headers=headers, proxies=proxies, timeout=30)
         else:
             break
 
@@ -243,5 +251,3 @@ if __name__ == '__main__':
     #     load_dict = json.load(load_f)
     #     for community in load_dict:
     #         build_shop_community_obj(community, 0, CommunityInfo())
-
-
