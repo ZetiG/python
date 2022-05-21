@@ -24,15 +24,15 @@ parser.read('base_config.cfg')
 host = parser.get('spider_sql_conf', 'host')
 port = parser.get('spider_sql_conf', 'port')
 user = parser.get('spider_sql_conf', 'user')
-passwd = parser.get('spider_sql_conf', 'passwd')
-db = parser.get('spider_sql_conf', 'db')
+password = parser.get('spider_sql_conf', 'password')
+db_name = parser.get('spider_sql_conf', 'db')
 
 # 数据库连接
-conn = pymysql.connect(host=host, port=port, user=user, passwd=passwd, db=db)
+conn = pymysql.connect(host=host, port=int(port), user=user, passwd=password, db=db_name)
 cursor = conn.cursor()
 
 
-def proxies_switch(url):
+def proxies_switch(req_url, req_headers):
     print("正在进行ip的切换...")
     global ip_num, ip_post
     status = False
@@ -44,8 +44,8 @@ def proxies_switch(url):
         ip = items[0][0]
         post = items[0][1]
         ip_post = ip + ":" + post
-        response = requests.get(url, proxies={'http': ip_post})
-        status = response.ok and response.url.split('?')[0] == url
+        response = requests.get(req_url, headers=req_headers, proxies={'http': ip_post})
+        status = response.ok and response.url.split('?')[0] == req_url
         ip_num = ip_num + 1
     proxies['http'] = ip_post
     print("第%ds个ip地址测试成功" % ip_num)

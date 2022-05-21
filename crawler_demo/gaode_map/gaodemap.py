@@ -27,6 +27,7 @@ class Residential:
         for sp in cfg_sections:
             if sp.startswith("shop_"):
                 shop = Shop()
+                shop.shop_name = self.config.get(sp, 'shop_name')
                 shop.location = self.config.get(sp, 'location')
                 shop.radius = self.config.get(sp, 'radius')
                 shop.page_size = self.config.get(sp, 'page_size')
@@ -57,6 +58,9 @@ class Residential:
             response = requests.get(gaode_api, param)
             if response.status_code == 200 and json.loads(response.text)['status'] == '1':
                 for poi in json.loads(response.text)['pois']:
+                    # 插入小店信息字段
+                    poi['shop_name'] = shop.shop_name
+                    poi['shop_location'] = shop.location
                     result_json_list.append(poi)
 
         # 写入文件
@@ -74,6 +78,7 @@ def write_result_to_file(file_name, result):
 
 # 小店配置类
 class Shop:
+    shop_name = None
     location = None
     radius = None
     page_size = None
