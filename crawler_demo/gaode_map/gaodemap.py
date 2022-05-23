@@ -31,6 +31,7 @@ class Residential:
                 shop.location = self.config.get(sp, 'location')
                 shop.radius = self.config.get(sp, 'radius')
                 shop.page_size = self.config.get(sp, 'page_size')
+                shop.page_num = self.config.get(sp, 'page_num')
                 shop.types = self.config.get(sp, 'types')
                 shop_list.append(shop)
 
@@ -53,7 +54,8 @@ class Residential:
                 'types': shop.types,  # 高德POI值，对应查询周边类型(住宅)
                 'location': shop.location,  # 小店经纬度
                 'radius': shop.radius,
-                'page_size': shop.page_size
+                'page_size': shop.page_size,
+                'page_num': shop.page_num,
             }
             response = requests.get(gaode_api, param)
             if response.status_code == 200 and json.loads(response.text)['status'] == '1':
@@ -82,6 +84,7 @@ class Shop:
     location = None
     radius = None
     page_size = None
+    page_num = None
     types = None
 
 
