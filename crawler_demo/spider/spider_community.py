@@ -25,8 +25,7 @@ headers = {
     "accept-encoding": "gzip, deflate, br",
     "accept-language": "zh-CN,zh;q=0.9",
     "cache-control": "max-age=0",
-    # "cookie": "aQQ_ajkguid=7E7059E3-A8A7-4994-14CA-9E6BE6E5D5E9; ctid=18; wmda_uuid=e5da125b3345ee6d4e5a09ea78d31c09; wmda_new_uuid=1; wmda_visited_projects=%3B6289197098934; id58=CpQMQ2JtC5Y/DbwstoReAg==; 58tj_uuid=f1039db5-80cd-4036-b650-a394364e532a; _ga=GA1.2.1398758582.1651313558; als=0; isp=true; cmctid=79; sessid=A3A85D36-6B18-7E3F-0224-FD2FBB0D8FFF; twe=2; _gid=GA1.2.1550625655.1652954225; ajk_member_captcha=725f14718939fb1b3c2ab994ba2e11e4; fzq_js_anjuke_jingjiren_pc=9a6e870b19407a415a0e19f3a212d532_1653040607426_25; fzq_h=052e2bcc62a164a5039f0e7a919e4002_1653040900982_1c17b54a64ae47e29915e24e7d17cec9_2061522738; fzq_js_anjuke_ershoufang_pc=76bb80b0c1ab2fb1b285c439e70b8ec5_1653041805376_24; ajk-appVersion=; obtain_by=2; fzq_js_anjuke_xiaoqu_pc=e651dfaea3e7a046018c27eaea2ec639_1653042593908_23; new_session=1; init_refer=https%253A%252F%252Fhangzhou.anjuke.com%252F; new_uv=8; _gat=1; xxzl_cid=3288c8238883454abbd0c2c82815bc7d; xzuid=06ca0d5e-0292-447e-b2be-4425ebd8ae33",
-    "cookie": "aQQ_ajkguid=7D40324D-4939-71A5-0DAD-1548907261DE; ctid=18; obtain_by=1; twe=2; fzq_js_anjuke_ershoufang_pc=2d93a3ce684037ba87a45808b43e27fc_1653124207867_23; xxzl_cid=b871a12f5a9b450e82307d87fdbb6a20; xzuid=87131526-9c17-496d-93fb-eeb3291a2d1e; fzq_h=11bf6f372adff459bd8df621fcfabc92_1653124180103_65a87ca01a334ade879d6bb7a70319c3_2061522738; wmda_session_id_6289197098934=1653124171935-03af4c16-ca6a-3500; 58tj_uuid=fb95c23f-ca46-4d9c-9245-ec42e607d87d; _ga=GA1.2.2074581672.1653034187; _gid=GA1.2.1810825487.1653124172; init_refer=; new_session=0; new_uv=2; _gat=1; sessid=7C51EF0C-5595-4CB4-ADA9-0D78C842362F; ajk-appVersion=; als=0; id58=CocDiGKHTMuvj36ZA9tWAg==; wmda_new_uuid=1; wmda_uuid=56bac6a928b804dcab9b1e3e3cdc188f; wmda_visited_projects=%3B6289197098934",
+    "cookie": "aQQ_ajkguid=7E7059E3-A8A7-4994-14CA-9E6BE6E5D5E9; ctid=18; wmda_uuid=e5da125b3345ee6d4e5a09ea78d31c09; wmda_new_uuid=1; wmda_visited_projects=%3B6289197098934; id58=CpQMQ2JtC5Y/DbwstoReAg==; 58tj_uuid=f1039db5-80cd-4036-b650-a394364e532a; _ga=GA1.2.1398758582.1651313558; als=0; isp=true; cmctid=79; sessid=A3A85D36-6B18-7E3F-0224-FD2FBB0D8FFF; twe=2; ajk_member_captcha=725f14718939fb1b3c2ab994ba2e11e4; fzq_js_anjuke_jingjiren_pc=9a6e870b19407a415a0e19f3a212d532_1653040607426_25; fzq_h=06e58f409dc558eabf1d7646031a8065_1653270970035_319811dd86b64837aa7ca28a1ce47d0a_2061522738; new_uv=12; _gid=GA1.2.858591230.1653270974; wmda_session_id_6289197098934=1653272431876-6c42f82d-50d4-4d42; new_session=0; utm_source=; spm=; ajk-appVersion=; init_refer=https%253A%252F%252Fhangzhou.anjuke.com%252Fsale%252F%253Fq%253D%2525E6%252596%2525B0%2525E4%2525B8%2525BD%2525E5%252590%25258D%2525E8%25258B%252591; ajk_member_verify=HOLCoE%2Fdv9xBoZclWpN%2Fuwf20mYP4fB9WOqxCV%2BN9mkiJKz6%2FnYBBgq4dDckudXN; ajk_member_verify2=NjIxODIwMTZ85YaN5LiN5aWL5paX5bCx55yf55qE5ZCD5Zyf5LqGfDE%3D; fzq_js_anjuke_ershoufang_pc=b114233a8ba9900dc3c74c1fefc20011_1653272895563_24; obtain_by=2; xxzl_cid=3288c8238883454abbd0c2c82815bc7d; xzuid=06ca0d5e-0292-447e-b2be-4425ebd8ae33; ajkAuthTicket=TT=d50780a9512272663d8fc34c72201f25&TS=1653272910583&PBODY=fR75aN69CJHSIUAvwLIPIR918yniNTiWl4LNqvZbOV5C7rkAnh_WGQP0gcjixFcaYrH_yIhZNcaoRMZS1BIO49M0qHYA93Uh9Jx2hRHqMRaX4GJZuji8l_HoJA4KySpDv9vTSO-YqGFYdJbOTkCmWOZrxwTCE2Ek9i6TBRUSpl0&VER=2&CUID=c4ACk6GNOOoBm1_UBOFzBOJpTd-Z8guI; fzq_js_anjuke_xiaoqu_pc=07612dbfadc7694b9ef7dbe3d27e3b2d_1653272910751_23",
     "referer": "https://hangzhou.anjuke.com/sale/rd1/?q=%E6%96%B0%E4%B8%BD%E5%90%8D%E8%8B%91",
     "user-agent": UserAgent(path=os.path.join('', 'fake_ua.json')).random,  # path 为你放置 fake_ua.json文件路径
 }
@@ -138,7 +137,7 @@ def get_ajk_community_code(community_name):
 def get_attr_detail_by_id(community_id, community_price):
     logging.info('调用安居客api, 通过小区id查询详情start... 小区id:[%s]', community_id)
     if community_id is None:
-        return CommunityInfo
+        return CommunityInfo()
 
     global proxies
 
@@ -172,7 +171,7 @@ def get_attr_detail_by_id(community_id, community_price):
     if soup_find_all is None or len(soup_find_all) <= 0:
         return
 
-    community_info = CommunityInfo
+    community_info = CommunityInfo()
     community_info.community_id = community_id
     community_info.community_price = community_price
     # 遍历所有属性，取所需要的字段
@@ -182,10 +181,10 @@ def get_attr_detail_by_id(community_id, community_price):
         # 判断属性是否是所需信息
         if content_key is not None and content_key in community_info_dict.keys():
             content_val = soup.next_element.next_element.next_element.next_element.next_element.text
-            content_val = content_val.replace(' ', '').replace('\n', '').replace('\r', '')
+            ctv = content_val.replace(' ', '').replace('\n', '').replace('\r', '')
 
             # 查询类内是否包含该属性，并赋值
-            community_info.set_attr_val(community_info, community_info_dict.get(content_key), content_val)
+            community_info.set_attr_val(community_info_dict.get(content_key), ctv)
 
     return community_info
 
