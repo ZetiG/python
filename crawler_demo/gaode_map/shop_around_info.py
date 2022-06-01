@@ -1,46 +1,26 @@
+"""
+小店周边信息（小区、商场、超市、便利店、写字楼）
+"""
 import logging
-
 import requests
 import json
-from configparser import ConfigParser
+import get_config
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+gaode_api = get_config.gaode_base_url
+gaode_key = get_config.gaode_base_key
 
 
 # 1. 根据小店经纬度坐标，获取周边1公里范围内住宅信息
 # 2. 拿到上步获取的住宅信息，利用爬虫从二手房交易网站获取住宅信息
 class Residential:
-    def __init__(self):
-        self.config = None
-
-    def read_config(self):
-        # 高德基础配置
-        self.config = ConfigParser()
-        self.config.read('gaode_map.cfg')
-        gaode_api = self.config.get('gaode', 'def_gaode_api')
-        gaode_key = self.config.get('gaode', 'def_gaode_key')
-
-        # 遍历读取小店配置，并返回数组
-        shop_list = []
-        cfg_sections = self.config.sections()
-        for sp in cfg_sections:
-            if sp.startswith("shop_"):
-                shop = Shop()
-                shop.shop_name = self.config.get(sp, 'shop_name')
-                shop.location = self.config.get(sp, 'location')
-                shop.radius = self.config.get(sp, 'radius')
-                shop.page_size = self.config.get(sp, 'page_size')
-                shop.page_num = self.config.get(sp, 'page_num')
-                shop.types = self.config.get(sp, 'types')
-                shop_list.append(shop)
-
-        return gaode_api, gaode_key, shop_list
 
     @staticmethod
-    def get_around_community(self):
+    def get_around_community():
         logging.info('开始调用高德api查询小店周边业态...')
-        gaode_api, gaode_key, shop_list = self.read_config()
+        shop_list = get_config.get_shop_config()
 
         if gaode_api is None or gaode_key is None or shop_list is None or len(shop_list) <= 0:
             logging.warning('高德参数配置有误，请检查后重试~')
@@ -57,7 +37,8 @@ class Residential:
                 'page_size': shop.page_size,
                 'page_num': shop.page_num,
             }
-            response = requests.get(gaode_api, param)
+            response = requests.get(get_config.gaode_base_url, param)
+            logging.info("获取小店周边信息请求地址: %s", response.url)
             if response.status_code == 200 and json.loads(response.text)['status'] == '1':
                 for poi in json.loads(response.text)['pois']:
                     # 插入小店信息字段
@@ -78,15 +59,5 @@ def write_result_to_file(file_name, result):
     logging.info('小店周边信息写入完成')
 
 
-# 小店配置类
-class Shop:
-    shop_name = None
-    location = None
-    radius = None
-    page_size = None
-    page_num = None
-    types = None
-
-
 if __name__ == '__main__':
-    Residential.get_around_community(Residential())
+    Residential.get_around_community()
