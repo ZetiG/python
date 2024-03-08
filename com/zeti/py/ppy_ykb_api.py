@@ -1,442 +1,346 @@
-#!/usr/local/bin/python
-# -*- coding: utf-8 -*-
-import sys
-import requests
 import json
+import sys
+from datetime import datetime
+
 import pymysql
-from datetime import datetime, timedelta
+import requests
+from typing import Optional, NamedTuple, List
+from enum import Enum
+
+# 全局变量
+# global_access_token = None
+# access_token_expire = None
+global_access_token = 'ID01uUktxWxmpx:ID_3gmIXhB0M38'
+access_token_expire = datetime(2023, 11, 28, 12, 40, 9)
+
+# 易快报请求参数
+base_ykb_request_url = 'https://dd2.ekuaibao.com/api/openapi'
+base_ykb_appKey = {
+    "appKey": "742edd7e-2c83-4983-9b59-500a7d94e9ae",
+    "appSecurity": "86980dbf-e479-494a-9c54-ebd8513905b6"
+}
+
+# 设置数据库连接参数
+db_config = {
+    'host': '60.190.243.69',
+    'user': 'bigdata',
+    'password': 'VB8kGYjN',
+    'database': 'ods_canal',
+    'port': 9030,
+}
 
 
-# 获取Token
-def get_token():
-    # 获取Token
-    url = "https://dd2.ekuaibao.com/api/openapi/v1/auth/getAccessToken"
-    headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
-    data = {"appKey": "742edd7e-2c83-4983-9b59-500a7d94e9ae", "appSecurity": "86980dbf-e479-494a-9c54-ebd8513905b6"}
-    res = requests.post(url, headers=headers, json=data)
-    result = res.json()
-    # print(json.dumps(result1))
-    # 调用接口获取Token赋值，为后续接口调用所用
-    accessToken1 = result['value']['accessToken']
-    print(accessToken1)
-    return accessToken1
-
-
-# 调用API接口获取数据
-def request_get(url=None, *args):
-    # get 请求使用
-    for arg in args:
-        url += arg
-    print(url)
-    # 头部参数
-    headers = {'Content-Type': 'application/json', 'Accept': 'application/json'}
-    # API接口访问
-    res = requests.get(url, headers=headers)
-    # ASCII转为中文
-    json_str = json.dumps(res.json()['items'], ensure_ascii=False)
-    if json.loads(json.dumps(res.json())).get('count') is not None:
-        count = res.json()['count']
-    else:
-        count = -1
-    # print(json_str)
-    print("接口查询范围内数据总行数：", count)
-    # 将 JSON 对象转换为 Python 字典
-    data = json.loads(json_str)
-    return data, count
-
-
-# 数据插入目标表
-def insert_doris(table_name, data):
-    # 获取字典长度，用于循环
-    row_count = len(data)
-    print("row_count: ", row_count)
-    # 连接MySQL数据库
-    db = pymysql.connect(
-        host='172.16.31.193',
-        user='bigdata',
-        password='VB8kGYjN',
-        db='ods_canal',
-        port=9030
-    )
-    # 将数据存入数据库
-    cursor = db.cursor()
-    # 通过表名获取目标表插入语句
-    query_sql = """select concat('insert into ',table_schema,'.',table_name,' (',GROUP_CONCAT(column_name),', 
-                    etl_insert_time, etl_update_time) values (''') as insert_sql_header
-                    ,group_concat(column_name_aux2,',') as insert_sql_body
-                    from
-                    (
-                    select table_schema,table_name,column_name,concat(' + str(data[count][''',column_name,''']) + ') 
-                    as column_name_aux,concat('str(data[count][''',column_name,'''])') as column_name_aux2
-                    ,ordinal_position
-                    from information_schema.columns where table_schema='ods_canal' 
-                    and table_name='""" + table_name + """' and column_name not in ('etl_insert_time','etl_update_time') 
-                    order by ordinal_position
-                    ) T group by table_schema,table_name;"""
-    # 插入语句赋值
-    cursor.execute(query_sql)
-    sql_str1 = cursor.fetchone()
-    if sql_str1 is None:
-        print("目标表不存在请确认书写是否正确，也可手动新增此表！")
+# 主程序入口
+def task_run(task_name, start_date, end_date):
+    if task_name is None or task_name == '':
+        print('任务表名不能为空！')
         sys.exit(1)
-    # 获取插入语句头部信息
-    insert_sql_header = sql_str1[0]
-    # 循环json内容
-    count = 0
-    sql_str_aux = ''
-    while count < row_count:
-        # print(count, " 小于 row")
-        # SQL 插入语句
-        if table_name == 'ods_ppy_ykb_expense_type':
-            sql_str = insert_sql_header \
-                      + str(data[count]['id']) + "','" \
-                      + str(data[count]['name']) + "','" \
-                      + str(data[count]['parentId']) + "','" \
-                      + str(data[count]['active']) + "','" \
-                      + str(data[count]['code']) + "',now(),now()) "
-        elif table_name == 'ods_ppy_ykb_project_type':
-            sql_str = insert_sql_header \
-                      + str(data[count]['id']) + "','" \
-                      + str(data[count]['name']) + "','" \
-                      + str(data[count]['active']) + "','" \
-                      + str(data[count]['code']) + "','" \
-                      + str(data[count]['dimensionId']) + "','" \
-                      + str(data[count]['parentId']) + "','" \
-                      + str(data[count]['updateTime']) + "','" \
-                      + str(data[count]['createTime']) + "',now(),now()) "
-        elif table_name == 'ods_ppy_ykb_department_type':
-            sql_str = insert_sql_header \
-                      + str(data[count]['id']) + "','" \
-                      + str(data[count]['name']) + "','" \
-                      + str(data[count]['parentId']) + "','" \
-                      + str(data[count]['active']) + "','" \
-                      + str(data[count]['code']) + "','" \
-                      + str(data[count]['updateTime']) + "','" \
-                      + str(data[count]['createTime']) + "',now(),now()) "
-        elif table_name == 'ods_ppy_ykb_receipt_template_type':
-            sql_str = insert_sql_header \
-                      + str(data[count]['id']) + "','" \
-                      + str(data[count]['name']) + "','" \
-                      + str(data[count]['active']) + "',now(),now()) "
-        elif table_name == 'ods_ppy_ykb_receipt_list':
-            # details内部循环，基于json数组数量进行循环取值
-            if json.loads(json.dumps(data[count]['form'])).get('details') is not None:
-                row_count_aux = len(json.loads(json.dumps(data[count]['form']))['details'])
-            else:
-                row_count_aux = 0
-            count_aux = 0
-            print("内部循环总行数: ", row_count_aux)
-            print(insert_sql_header)
-            sql_str = insert_sql_header \
-                      + datetime.fromtimestamp(int(str(data[count]['createTime'])[0:10:])).strftime("%Y-%m-%d") + "','" \
-                      + str(data[count]['id']) + "','" \
-                      + str(data[count]['active']) + "','" \
-                      + datetime.fromtimestamp(int(str(data[count]['createTime'])[0:10:])).strftime("%Y-%m-%d %H:%M:%S") + "','" \
-                      + datetime.fromtimestamp(int(str(data[count]['updateTime'])[0:10:])).strftime("%Y-%m-%d %H:%M:%S") + "','" \
-                      + str(data[count]['corporationId']) + "','" \
-                      + str(data[count]['ownerId']) + "','" \
-                      + str(data[count]['ownerDefaultDepartment']) + "','" \
-                      + str(data[count]['state']) + "','" \
-                      + str(data[count]['flowType']) + "','" \
-                      + str(data[count]['formType']) + "','" \
-                      + json.dumps(data[count]['logs'], ensure_ascii=False) + "','" \
-                      + json.dumps(data[count]['actions'], ensure_ascii=False) + "',now(),now()) "
 
-            if json.loads(json.dumps(data[count]['form'])) is not None and \
-            json.loads(json.dumps(data[count]['form'])).get('details') is not None and \
-            len(json.loads(json.loads(json.dumps(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))))) > 0 and \
-            json.loads(json.loads(json.dumps(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))))[count_aux]['feeTypeForm'] is not None and \
-            json.loads(json.loads(json.dumps(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))))[count_aux]['feeTypeForm'].get('项目') is not None:
-                projects = json.loads(json.loads(json.dumps(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))))[count_aux]['feeTypeForm'].get('项目')
-            else:
-                projects = ''
+    # 构建请求url
+    request_url = build_request(task_name, start_date, end_date)
 
-            if json.loads(json.dumps(data[count]['form'])).get('details') is not None:
-                details = json.dumps(json.loads(json.dumps(data[count]['form']))['details'], ensure_ascii=False)
-            else:
-                details = ''
+    print(global_access_token)
 
-            if json.loads(json.dumps(data[count]['form'])).get('expenseDate') is not None:
-                expenseDate = str(json.loads(json.dumps(data[count]['form']))['expenseDate'])
-            else:
-                expenseDate = ''
 
-            if json.loads(json.dumps(data[count]['form'])).get('expenseMoney') is not None:
-                expenseMoney = json.dumps(json.loads(json.dumps(data[count]['form']))['expenseMoney'],
-                                          ensure_ascii=False)
-            else:
-                expenseMoney = ''
+# 构建对应请求
+def build_request(task_name, start_date, end_date):
+    print('开始构建请求：', task_name, start_date, end_date)
+    if task_name is None or task_name == '':
+        print('任务表名不能为空！')
+        sys.exit(1)
 
-            if json.loads(json.dumps(data[count]['form'])).get('companyRealPay') is not None:
-                companyRealPay = json.dumps(json.loads(json.dumps(data[count]['form']))['companyRealPay'],
-                                            ensure_ascii=False)
-            else:
-                companyRealPay = ''
+    request_url = ''
+    if task_name == TableNameEnum.tbName_ykb_receipt_list.table_name and start_date is None:
+        print(f"执行任务：[{task_name}]时，至少指定一个开始时间：[{start_date}]")
+        sys.exit(1)
 
-            if json.loads(json.dumps(data[count]['form'])).get('writtenOffMoney') is not None:
-                writtenOffMoney = json.dumps(json.loads(json.dumps(data[count]['form']))['writtenOffMoney'],
-                                             ensure_ascii=False)
-            else:
-                writtenOffMoney = ''
+    elif task_name == TableNameEnum.tbName_ykb_department_type.table_name:
+        request_url = TableNameEnum.tbName_ykb_department_type.url
 
-            if json.loads(json.dumps(data[count]['form'])).get('expenseDepartment') is not None:
-                expenseDepartment = str(json.loads(json.dumps(data[count]['form']))['expenseDepartment'])
-            else:
-                expenseDepartment = ''
+    elif task_name == TableNameEnum.tbName_ykb_expense_type.table_name:
+        print()
 
-            if json.loads(json.dumps(data[count]['form'])).get('payDate') is not None:
-                payDate = str(json.loads(json.dumps(data[count]['form']))['payDate'])
-            else:
-                payDate = ''
+    elif task_name == TableNameEnum.tbName_ykb_project_type.table_name:
+        print()
 
-            if json.loads(json.dumps(data[count]['form'])).get('payPlan') is not None:
-                payPlan = json.dumps(json.loads(json.dumps(data[count]['form']))['payPlan'], ensure_ascii=False)
-            else:
-                payPlan = ''
+    elif task_name == TableNameEnum.tbName_ykb_receipt_template_type.table_name:
+        print()
 
-            if json.loads(json.dumps(data[count]['form'])).get('flowEndTime') is not None:
-                flowEndTime = str(json.loads(json.dumps(data[count]['form']))['flowEndTime'])
-            else:
-                flowEndTime = ''
+    elif task_name == TableNameEnum.tbName_ykb_receipt_list.table_name:
+        request_routing = TableNameEnum.tbName_ykb_receipt_list.routing
+        page_start = 0  # 查询起始页
+        page_count = 40  # 每次查询总行数
 
-            if json.loads(json.dumps(data[count]['form'])).get('paymentChannel') is not None:
-                paymentChannel = json.loads(json.dumps(data[count]['form']))['paymentChannel']
-            else:
-                paymentChannel = ''
+        receipt_type_list = ['expense', 'loan', 'payment', 'requisition']
+        for i in range(len(receipt_type_list)):
+            params = {
+                'type': receipt_type_list[i],
+                'start': page_start,
+                'count': page_count,
+                'orderBy': 'updateTime',
+                'startDate': start_date + ' 00:00:01',
+                'endDate': end_date + ' 23:59:59'
+            }
 
-            if json.loads(json.dumps(data[count]['form'])).get('paymentAccountId') is not None:
-                paymentAccountId = str(json.loads(json.dumps(data[count]['form']))['paymentAccountId'])
-            else:
-                paymentAccountId = ''
+            total_count = sys.maxsize
+            while page_start < total_count:
+                # 请求接口
+                datas, count = load_data(request_routing, params)
 
-            if json.loads(json.dumps(data[count]['form'])).get('payeeId') is not None:
-                payeeId = json.loads(json.dumps(data[count]['form']))['payeeId']
-            else:
-                payeeId = ''
+                # 写入数据库
+                parse_receipt_list(datas)
 
-            if json.loads(json.dumps(data[count]['form'])).get('payMoney') is not None:
-                payMoney = json.dumps(json.loads(json.dumps(data[count]['form']))['payMoney'], ensure_ascii=False)
-            else:
-                payMoney = ''
+                # 计算下次请求的分页起始值
+                total_count = convert_to_nearest_multiple(count, page_count)
+                page_start += page_count
+                params.update({'start': page_start})
+                print(count)
 
-            if json.loads(json.dumps(data[count]['form'])).get('timeToEnterPendingPayment') is not None:
-                timeToEnterPendingPayment = str(
-                    json.loads(json.dumps(data[count]['form']))['timeToEnterPendingPayment'])
-            else:
-                timeToEnterPendingPayment = ''
-
-            if json.loads(json.dumps(data[count]['form'])).get('preNodeApprovedTime') is not None:
-                preNodeApprovedTime = str(json.loads(json.dumps(data[count]['form']))['preNodeApprovedTime'])
-            else:
-                preNodeApprovedTime = ''
-
-            if json.loads(json.dumps(data[count]['form'])).get('voucherStatus') is not None:
-                voucherStatus = json.loads(json.dumps(data[count]['form']))['voucherStatus']
-            else:
-                voucherStatus = ''
-
-            if json.loads(json.dumps(data[count]['form'])).get('submitDate') is not None:
-                submitDate = str(json.loads(json.dumps(data[count]['form']))['submitDate'])
-            else:
-                submitDate = ''
-
-            if json.loads(json.dumps(data[count]['form'])).get('specificationId') is not None:
-                specificationId = str(json.loads(json.dumps(data[count]['form']))['specificationId'])
-            else:
-                specificationId = ''
-
-            sql_str_aux = "insert into ods_canal.ods_ppy_ykb_receipt_list_detail (dateid, id, code, title, project," \
-                          + " details, payDate, payPlan, payeeId, payMoney, submitDate, expenseDate, flowEndTime, " \
-                          + "expenseMoney, voucherStatus, companyRealPay, paymentChannel, writtenOffMoney, " \
-                          + "paymentAccountId, expenseDepartment, preNodeApprovedTime, specificationId, timeToEnterPendingPayment, " \
-                          + "etl_insert_time, etl_update_time) values ('" \
-                          + datetime.fromtimestamp(int(str(data[count]['createTime'])[0:10:])).strftime("%Y-%m-%d") \
-                          + "','" \
-                          + str(data[count]['id']) + "','" \
-                          + json.loads(json.dumps(data[count]['form']))['code'] + "','" \
-                          + json.loads(json.dumps(data[count]['form']))['title'] + "','" \
-                          + projects + "','" \
-                          + details + "','" \
-                          + payDate + "','" \
-                          + payPlan + "','" \
-                          + payeeId + "','" \
-                          + payMoney + "','" \
-                          + submitDate + "','" \
-                          + expenseDate + "','" \
-                          + flowEndTime + "','" \
-                          + expenseMoney + "','" \
-                          + voucherStatus + "','" \
-                          + companyRealPay + "','" \
-                          + paymentChannel + "','" \
-                          + writtenOffMoney + "','" \
-                          + paymentAccountId + "','" \
-                          + expenseDepartment + "','" \
-                          + preNodeApprovedTime + "','" \
-                          + specificationId + "','" \
-                          + timeToEnterPendingPayment + "',now(),now()) "
-            while count_aux < row_count_aux:
-                # 处理单据内费用明细是分摊的情况
-                if json.loads(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm'])) is not None \
-                    and json.loads(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm'])).get('apportions') is not None \
-                    and len(json.loads(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm']))['apportions']) > 0 :
-
-                    # 分摊到部门的数量
-                    apportions_count = len(json.loads(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm']))['apportions'])
-                    print("费用明细分摊，总分摊数：[", apportions_count, "]条！")
-                    while apportions_count > 0:
-                        apportions_count -= 1
-                        sql_str_aux_detail = "insert into ods_canal.ods_ppy_ykb_receipt_list_detail_aux (dateid, id, detailId, feeTypeId, expenseDepartment, " \
-                                             + " project, feeTypeForm, amount, specificationId,etl_insert_time, etl_update_time) values ('" \
-                                             + datetime.fromtimestamp(int(str(data[count]['createTime'])[0:10:])).strftime("%Y-%m-%d") + "','" \
-                                             + str(data[count]['id']) + "','" \
-                                             + json.loads(json.dumps(data[count]['form']))['details'][count_aux]['feeTypeForm']['apportions'][apportions_count]['apportionForm']['apportionId'] + "','" \
-                                             + str(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeId']) + "','" \
-                                             + json.loads(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm']))['apportions'][apportions_count]['apportionForm']['expenseDepartment'] + "','" \
-                                             + (str(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm']['项目']) if json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm'].get('项目') is not None else "") + "','" \
-                                             + str(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm'], ensure_ascii=False)) + "','" \
-                                             + json.dumps(json.loads(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm']))['apportions'][apportions_count]['apportionForm']['apportionMoney'], ensure_ascii=False) + "','" \
-                                             + str(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['specificationId']) + "',now(),now()) "
-                        print(sql_str_aux_detail)
-                        cursor.execute(sql_str_aux_detail)
-                        db.commit()
-                        print("费用明细分摊，当前未完成分摊剩余：[", apportions_count, "]条！")
-                else:
-                    sql_str_aux_detail = "insert into ods_canal.ods_ppy_ykb_receipt_list_detail_aux (dateid, id, detailId, feeTypeId, expenseDepartment," \
-                                         + " project, feeTypeForm, amount, specificationId,etl_insert_time, etl_update_time) values ('" \
-                                         + datetime.fromtimestamp(int(str(data[count]['createTime'])[0:10:])).strftime("%Y-%m-%d") + "','" \
-                                         + str(data[count]['id']) + "','" \
-                                         + json.loads(json.dumps(data[count]['form']))['details'][count_aux]['feeTypeForm']['detailId'] + "','" \
-                                         + str(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeId']) + "','" \
-                                         + (str(json.loads(json.dumps(data[count]['form']))['expenseDepartment']) if json.loads(json.dumps(data[count]['form'])).get('expenseDepartment') is not None else "") + "','" \
-                                         + (str(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm']['项目']) if json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm'].get('项目') is not None else "") + "','" \
-                                         + str(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm'], ensure_ascii=False)) + "','" \
-                                         + json.dumps(json.loads(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm']))['amount'], ensure_ascii=False) + "','" \
-                                         + str(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['specificationId']) + "',now(),now()) "
-                    print(sql_str_aux_detail)
-                    cursor.execute(sql_str_aux_detail)
-                    # print(str(json.dumps(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[count_aux]['feeTypeForm'])))
-                    db.commit()
-                print("内部数据加载完成第：", count_aux + 1, "条！")
-                count_aux = count_aux + 1
-        else:
-            print("目标表插入语句未配置，请先配置！")
-            sys.exit(1)
-        print(sql_str)
-        print(sql_str_aux)
-        # print(json.loads(json.dumps(json.loads(json.dumps(data[count]['form']))['details']))[0]['feeTypeId'])
-        # 如果是单据表，则同时进行两个目标表插入，其它情况则是单表插入
-        if table_name == 'ods_ppy_ykb_receipt_list':
-            cursor.execute(sql_str)
-            cursor.execute(sql_str_aux)
-        else:
-            cursor.execute(sql_str)
-        # 提交到数据库执行
-        db.commit()
-        print("数据加载完成第：", count + 1, "条！")
-        count = count + 1
     else:
-        print("完成循环!")
+        print(f"表名不存在:[{task_name}]")
+        sys.exit(1)
+    return request_url
+
+
+# 解析单据列表接口结果集
+def parse_receipt_list(datas):
+    if datas is None or len(datas) <= 0:
+        print('单据列表结果为空！')
+        sys.exit(1)
+
+    list_count = 0
+    while list_count < len(datas):
+        receipt_object = ReceiptObject(**datas[list_count])
+        print(f"解析结果，id:[{receipt_object.id}], num:[{list_count}]")
+
+        list_count += 1
+
+
+# 获取易快报Token
+def get_token():
+    global global_access_token, access_token_expire
+    routing = '/v1/auth/getAccessToken'
+    headers = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json'
+    }
+    # 获取Token
+    res = requests.post(base_ykb_request_url + routing, headers=headers, json=base_ykb_appKey)
+    if res.status_code == 200:
+        result = res.json()
+        global_access_token = result['value']['accessToken']
+        access_token_expire = datetime.fromtimestamp(result['value']['expireTime']/1000)
+        print(f"获取易快报access_token:[{global_access_token}], 过期时间:[{access_token_expire}]")
+    else:
+        print('获取易快报access_token失败！')
+        sys.exit(1)
+
+
+# 调用API接口获取数据, routing:路由地址
+def load_data(routing, params):
+    global global_access_token, access_token_expire
+    if global_access_token is None or global_access_token == '' or access_token_expire is None \
+            or access_token_expire == '' \
+            or (access_token_expire - datetime.now()).days < 0 \
+            or (access_token_expire - datetime.now()).seconds < 300:
+        print('access_token不存在或已失效，准备重新获取token')
+        get_token()
+    else:
+        print(f"当前已有易快报access_token:[{global_access_token}], expire:[{access_token_expire}]")
+
+    # 参数里增加token
+    params['accessToken'] = global_access_token
+    res = requests.get(base_ykb_request_url + routing, params=params)
+
+    if res.status_code == 200:
+        count = json.loads(res.text)['count']
+        datas = json.loads(res.text)['items']
+        print(f"接口查询范围内数据总行数:[{count}]")
+        return datas, count
+    else:
+        print('易快报请求异常！')
+
+
+# 连接数据库
+try:
+    connection = pymysql.connect(**db_config)
+    with connection.cursor() as cursor:
+        print('Connected to the database')
+
+        # 在这里执行数据库操作，例如查询、插入等
+
+except pymysql.Error as e:
+    print(f'Error connecting to the database: {e}')
+
+finally:
     # 关闭数据库连接
-    db.close()
+    if 'connection' in locals() and connection.open:
+        connection.close()
+        print('Disconnected from the database')
 
 
-# 调度任务
-def load_data(table_name, start_date, end_date):
-    api_str = ''
-    param1 = ''
-    param2 = ''
-    param3 = ''
-    param4 = ''
-    param5 = ''
-    param6 = ''
-    pace_count = 0
-    if table_name == 'ods_ppy_ykb_expense_type':
-        api_str = 'https://dd2.ekuaibao.com/api/openapi/v1/feeTypes?accessToken='
-        param1 = ''
-        param2 = ''
-    elif table_name == 'ods_ppy_ykb_department_type':
-        api_str = 'https://dd2.ekuaibao.com/api/openapi/v1/departments?accessToken='
-        param1 = '&start=0'
-        param2 = '&count=1000'
-    elif table_name == 'ods_ppy_ykb_receipt_template_type':
-        api_str = 'https://dd2.ekuaibao.com/api/openapi/v1/specifications/latestByType?accessToken='
-        param1 = ''
-        param2 = ''
-    elif table_name == 'ods_ppy_ykb_project_type':
-        api_str = 'https://dd2.ekuaibao.com/api/openapi/v1/dimensions/items?accessToken='
-        param1 = '&start=0'
-        param2 = '&count=1000'
-    elif table_name == 'ods_ppy_ykb_receipt_list':
-        api_str = 'https://dd2.ekuaibao.com/api/openapi/v1.1/docs/getApplyList?accessToken='
-        param1 = '&start=0'
-        # 数据加载步幅
-        param2 = '&count=100'
-        param3 = '&orderBy=updateTime'
-        param4 = '&type=expense'
-        param5 = '&startDate=' + start_date + ' 00:00:01'
-        param6 = '&endDate=' + end_date + ' 23:59:59'
-        # 抓取特定单据 测试
-        # param5 = '&startDate=' + start_date + ' 10:28:03'
-        # param6 = '&endDate=' + end_date + ' 10:28:04'
-        # 数据加载步幅
-        pace_count = int(param2[7:])
+# 数据表对应url枚举类
+class TableNameEnum(Enum):
+    # 易快报-部门类型(维度数据)
+    tbName_ykb_department_type = ('ods_ppy_ykb_department_type', '/v1/departments')
+    # 易快报-费用类型(维度数据)
+    tbName_ykb_expense_type = ('ods_ppy_ykb_expense_type', '/v1/feeTypes')
+    # 易快报-项目类型(维度数据)
+    tbName_ykb_project_type = ('ods_ppy_ykb_project_type', '/v1/dimensions/items')
+    # 易快报-单据模板类型(维度数据)
+    tbName_ykb_receipt_template_type = ('ods_ppy_ykb_receipt_template_type', '/v1/specifications/latestByType')
+    # 易快报-单据清单(事实数据)
+    tbName_ykb_receipt_list = ('ods_ppy_ykb_receipt_list', '/v1.1/docs/getApplyList')
+    # 易快报-单据清单明细(事实数据)
+    tbName_ykb_receipt_list_detail = ('ods_ppy_ykb_receipt_list_detail', None)
+    # 易快报-单据清单明细分摊(事实数据)
+    tbName_ykb_receipt_list_detail_aux = ('ods_ppy_ykb_receipt_list_detail_aux', None)
 
-    # 获取token
-    accessToken = get_token()
-    # 调用get方法获取数据
-    # 单据每次只能抽取一种类型的单据，需要循环把所有单据都加载过来
-    if table_name == 'ods_ppy_ykb_receipt_list':
-        receipt_list = ['expense', 'loan', 'payment', 'requisition']
-        # receipt_list = ['expense']
-        # 循环调度各种类型单据
-        for i in range(len(receipt_list)):
-            param4 = '&type=' + receipt_list[i]
-            data1, count_total = request_get(api_str, accessToken, param1, param2, param3, param4, param5, param6)
-            print("数据总行数：", count_total)
-            # 数据插入目标表
-            insert_doris(table_name, data1)
-            # 接口每次最多只能拉取100条，如果查询条件范围内数据超过100条，则循环调度，直到数据全部加载完成
-            while int(count_total) > pace_count:
-                param1 = '&start=' + str(int(param1[7:]) + pace_count)
-                count_total -= pace_count
-                data1, last_count = request_get(api_str, accessToken, param1, param2, param3, param4, param5, param6)
-                print("数据剩余行数：", count_total)
-                print("数据加载步幅：", pace_count)
-                # 数据插入目标表
-                insert_doris(table_name, data1)
-            param1 = '&start=0'
-    elif table_name == 'ods_ppy_ykb_receipt_template_type':
-        receipt_list = ['expense', 'loan', 'payment', 'requisition', 'custom']
-        # 循环调度各种类型单据
-        for i in range(len(receipt_list)):
-            param4 = '&type=' + receipt_list[i]
-            data1, count_total = request_get(api_str, accessToken, param1, param2, param3, param4, param5, param6)
-            print("数据总行数：", count_total)
-            # 数据插入目标表
-            insert_doris(table_name, data1)
-    else:
-        data1, last_count = request_get(api_str, accessToken, param1, param2, param3, param4, param5, param6)
-        # 数据插入目标表
-        insert_doris(table_name, data1)
+    def __init__(self, table_name, routing):
+        self.table_name = table_name
+        self.routing = routing
 
 
-# ##################################################################
-if len(sys.argv[1:]) == 2:
-    end_date1 = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
-elif len(sys.argv[1:]) == 3:
-    end_date1 = sys.argv[3]
-else:
-    print("至少需要两个入参：目标表名、开始日期。最多三个入参：目标表名、开始日期、截止日期(不传默认今天24点)！")
-    sys.exit(1)
-table_name = sys.argv[1]
-start_date1 = sys.argv[2]
-# 获取特定单据 测试
-# table_name = 'ods_ppy_ykb_receipt_list'
-# start_date1 = '2023-09-18'
-# end_date1 = '2023-09-18'
-if table_name not in (
-        'ods_ppy_ykb_project_type', 'ods_ppy_ykb_expense_type', 'ods_ppy_ykb_department_type',
-        'ods_ppy_ykb_receipt_template_type', 'ods_ppy_ykb_receipt_list'):
-    print("目标表不存在，请先在代码中增加此表！")
-    sys.exit(1)
-load_data(table_name, start_date1, end_date1)
+# 将t1转化为大于当前值且是最小的f1的倍数的下一个值
+def convert_to_nearest_multiple(t1, f1):
+    if t1 % f1 == 0:
+        return t1  # 如果已经是f1的倍数，则无需转换
+
+    # 计算大于t1且是最小的f1的倍数的下一个值
+    return ((t1 // f1) + 1) * f1
+
+
+class ReceiptFormDetailApportionsObject:
+    apportionForm: dict
+    specificationId: str
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            if isinstance(value, dict):
+                self.__dict__[key] = ReceiptObject(**value)
+            else:
+                self.__dict__[key] = value
+
+
+# 单据表单form明细-费用类型
+class ReceiptFormDetailFeeTypeObject:
+    amount: dict
+    项目: str
+    feeDate: int
+    invoice: str
+    taxRate: str
+    detailId: str
+    detailNo: int
+    taxAmount: dict
+    apportions: List[ReceiptFormDetailApportionsObject]
+    attachments: list
+    invoiceForm: dict
+    consumptionReasons: str
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            if isinstance(value, dict):
+                self.__dict__[key] = ReceiptObject(**value)
+            else:
+                self.__dict__[key] = value
+
+
+# 单据表单form明细类
+class ReceiptFormDetailObject:
+    feeTypeId: str
+    feeTypeForm: ReceiptFormDetailFeeTypeObject
+    specificationId: str
+    feeType: dict
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            if isinstance(value, dict):
+                self.__dict__[key] = ReceiptObject(**value)
+            else:
+                self.__dict__[key] = value
+
+
+# 单据表单form类
+class ReceiptFormObject:
+    code: str
+    title: str
+    项目: str
+    details: List[ReceiptFormDetailObject]
+    payDate: int
+    payPlan: list
+    payeeId: str
+    payMoney: dict
+    voucherNo: str
+    printCount: str
+    printState: str
+    submitDate: int
+    attachments: list
+    description: str
+    expenseDate: int
+    flowEndTime: int
+    submitterId: str
+    expenseLinks: list
+    expenseMoney: dict
+    receiptState: str
+    rejectionNum: str
+    法人实体: str
+    voucherStatus: str
+    companyRealPay: dict
+    onlyOwnerPrint: bool
+    paymentChannel: str
+    specificationId: str
+    writtenOffMoney: dict
+    paymentAccountId: str
+    expenseDepartment: str
+    voucherCreateTime: int
+    preApprovedNodeName: str
+    preNodeApprovedTime: int
+    timeToEnterPendingPayment: int
+    ownerAndApproverPrintNodeFlag: bool
+    writtenOffRecords: list
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            if isinstance(value, dict):
+                self.__dict__[key] = ReceiptObject(**value)
+            else:
+                self.__dict__[key] = value
+
+
+# 单据类
+class ReceiptObject:
+    pipeline: int
+    grayver: str
+    dbVersion: int
+    threadId: str
+    version: int
+    active: bool
+    createTime: int
+    updateTime: int
+    corporationId: str
+    sourceCorporationId: str
+    dataCorporationId: str
+    ownerId: str
+    ownerDefaultDepartment: str
+    state: str
+    flowType: str
+    formType: str
+    logs: list
+    actions: dict
+    invoiceRemind: bool
+    appId: str
+    id: str
+    form: ReceiptFormObject
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            if isinstance(value, dict):
+                self.__dict__[key] = ReceiptObject(**value)
+            else:
+                self.__dict__[key] = value
+
+
+
+if __name__ == '__main__':
+    task_run('ods_ppy_ykb_receipt_list', '2023-11-07', '2023-11-07')
+
