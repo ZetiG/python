@@ -10,8 +10,8 @@ from enum import Enum
 # 全局变量
 # global_access_token = None
 # access_token_expire = None
-global_access_token = 'ID01uUktxWxmpx:ID_3gmIXhB0M38'
-access_token_expire = datetime(2023, 11, 28, 12, 40, 9)
+global_access_token = 'ID01xCsAd0MmB1:ID_3gmIXhB0M38'
+access_token_expire = datetime(2024, 3, 8, 19, 50, 51)
 
 # 易快报请求参数
 base_ykb_request_url = 'https://dd2.ekuaibao.com/api/openapi'
@@ -31,7 +31,7 @@ db_config = {
 
 
 # 主程序入口
-def task_run(task_name, start_date, end_date):
+def task_run(task_name, start_date=None, end_date=None):
     if task_name is None or task_name == '':
         print('任务表名不能为空！')
         sys.exit(1)
@@ -49,57 +49,57 @@ def build_request(task_name, start_date, end_date):
         print('任务表名不能为空！')
         sys.exit(1)
 
-    request_url = ''
-    if task_name == TableNameEnum.tbName_ykb_receipt_list.table_name and start_date is None:
-        print(f"执行任务：[{task_name}]时，至少指定一个开始时间：[{start_date}]")
+    # 获取routing
+    request_routing = TableNameEnum.get_routing_by_name(task_name)
+    if request_routing is None or request_routing == '':
+        print(f"该表名在枚举类中不存在:[{task_name}]")
         sys.exit(1)
 
-    elif task_name == TableNameEnum.tbName_ykb_department_type.table_name:
-        request_url = TableNameEnum.tbName_ykb_department_type.url
+    ykb_request_url = base_ykb_request_url + request_routing
+    params = {
+        'accessToken': get_token()
+    }
 
-    elif task_name == TableNameEnum.tbName_ykb_expense_type.table_name:
-        print()
-
-    elif task_name == TableNameEnum.tbName_ykb_project_type.table_name:
-        print()
-
-    elif task_name == TableNameEnum.tbName_ykb_receipt_template_type.table_name:
-        print()
-
-    elif task_name == TableNameEnum.tbName_ykb_receipt_list.table_name:
-        request_routing = TableNameEnum.tbName_ykb_receipt_list.routing
-        page_start = 0  # 查询起始页
-        page_count = 40  # 每次查询总行数
+    if task_name == TableNameEnum.tbName_ykb_receipt_list.table_name:
+        if start_date is None or start_date == '':
+            print(f"执行任务：[{task_name}]时，至少指定一个开始时间：[{start_date}]")
+            sys.exit(1)
 
         receipt_type_list = ['expense', 'loan', 'payment', 'requisition']
         for i in range(len(receipt_type_list)):
-            params = {
-                'type': receipt_type_list[i],
-                'start': page_start,
-                'count': page_count,
-                'orderBy': 'updateTime',
-                'startDate': start_date + ' 00:00:01',
-                'endDate': end_date + ' 23:59:59'
-            }
-
-            total_count = sys.maxsize
-            while page_start < total_count:
-                # 请求接口
-                datas, count = load_data(request_routing, params)
-
-                # 写入数据库
-                parse_receipt_list(datas)
-
-                # 计算下次请求的分页起始值
-                total_count = convert_to_nearest_multiple(count, page_count)
-                page_start += page_count
-                params.update({'start': page_start})
-                print(count)
-
+            params['type'] = receipt_type_list[i],
+            params['orderBy'] = 'updateTime',
+            params['startDate'] = start_date + ' 00:00:01',
+            params['endDate'] = end_date + ' 23:59:59'
+            get_data_write_db(ykb_request_url, params)
     else:
-        print(f"表名不存在:[{task_name}]")
-        sys.exit(1)
-    return request_url
+        get_data_write_db(ykb_request_url, params)
+
+    return ''
+
+
+# 分页请求，并写入数据库
+def get_data_write_db(ykb_request_url, params):
+    print(f"分页查询：[{ykb_request_url}]时，至少指定一个开始时间：[{params}]")
+
+    page_start = 0  # 查询起始页
+    page_count = 100  # 每次查询总行数
+    params['start'] = page_start
+    params['count'] = page_count
+
+    total_count = sys.maxsize
+    while page_start < total_count:
+        print(f"分页查询, page_start：[{page_start}]，page_count：[{page_count}]")
+        # 请求接口
+        datas, count = load_data(ykb_request_url, params)
+
+        # 写入数据库
+        parse_receipt_list(datas)
+
+        # 计算下次请求的分页起始值
+        total_count = convert_to_nearest_multiple(count, page_count)
+        page_start += page_count
+        params.update({'start': page_start})
 
 
 # 解析单据列表接口结果集
@@ -119,6 +119,14 @@ def parse_receipt_list(datas):
 # 获取易快报Token
 def get_token():
     global global_access_token, access_token_expire
+    if global_access_token is not None and global_access_token != '' and access_token_expire is not None \
+            and access_token_expire != '' \
+            and (access_token_expire - datetime.now()).days >= 0 \
+            and (access_token_expire - datetime.now()).seconds > 300:
+        print(f"当前已有易快报access_token:[{global_access_token}], expire:[{access_token_expire}]")
+        return global_access_token
+
+    print('access_token不存在或已失效，准备重新获取token')
     routing = '/v1/auth/getAccessToken'
     headers = {
         'Content-Type': 'application/json',
@@ -131,27 +139,15 @@ def get_token():
         global_access_token = result['value']['accessToken']
         access_token_expire = datetime.fromtimestamp(result['value']['expireTime']/1000)
         print(f"获取易快报access_token:[{global_access_token}], 过期时间:[{access_token_expire}]")
+        return global_access_token
     else:
-        print('获取易快报access_token失败！')
+        print('获取易快报access_token失败, 请重新执行任务！')
         sys.exit(1)
 
 
-# 调用API接口获取数据, routing:路由地址
-def load_data(routing, params):
-    global global_access_token, access_token_expire
-    if global_access_token is None or global_access_token == '' or access_token_expire is None \
-            or access_token_expire == '' \
-            or (access_token_expire - datetime.now()).days < 0 \
-            or (access_token_expire - datetime.now()).seconds < 300:
-        print('access_token不存在或已失效，准备重新获取token')
-        get_token()
-    else:
-        print(f"当前已有易快报access_token:[{global_access_token}], expire:[{access_token_expire}]")
-
-    # 参数里增加token
-    params['accessToken'] = global_access_token
-    res = requests.get(base_ykb_request_url + routing, params=params)
-
+# 调用API接口获取数据,返回数据和总行数
+def load_data(url, params):
+    res = requests.get(url, params=params)
     if res.status_code == 200:
         count = json.loads(res.text)['count']
         datas = json.loads(res.text)['items']
@@ -181,6 +177,8 @@ finally:
 
 # 数据表对应url枚举类
 class TableNameEnum(Enum):
+    # 易快报-员工列表(维度数据)
+    tbName_ykb_staffs_list = ('ods_ppy_ykb_staffs_list', '/v1/staffs')
     # 易快报-部门类型(维度数据)
     tbName_ykb_department_type = ('ods_ppy_ykb_department_type', '/v1/departments')
     # 易快报-费用类型(维度数据)
@@ -199,6 +197,12 @@ class TableNameEnum(Enum):
     def __init__(self, table_name, routing):
         self.table_name = table_name
         self.routing = routing
+
+    @staticmethod
+    def get_routing_by_name(table_name):
+        for tb in TableNameEnum:
+            if tb.table_name == table_name:
+                return tb.routing
 
 
 # 将t1转化为大于当前值且是最小的f1的倍数的下一个值
@@ -342,5 +346,6 @@ class ReceiptObject:
 
 
 if __name__ == '__main__':
+    task_run('ods_ppy_ykb_staffs_list')
     task_run('ods_ppy_ykb_receipt_list', '2023-11-07', '2023-11-07')
 
