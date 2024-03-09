@@ -6,12 +6,14 @@ import pymysql
 import requests
 from typing import Optional, NamedTuple, List
 from enum import Enum
+from dbutils.pooled_db import PooledDB
 
 # 全局变量
 # global_access_token = None
 # access_token_expire = None
-global_access_token = 'ID01xCsAd0MmB1:ID_3gmIXhB0M38'
-access_token_expire = datetime(2024, 3, 8, 19, 50, 51)
+
+global_access_token = 'ID01xE56WU3wS3:ID_3gmIXhB0M38'
+access_token_expire = datetime(2024, 3, 9, 19, 17, 53)
 
 # 易快报请求参数
 base_ykb_request_url = 'https://dd2.ekuaibao.com/api/openapi'
@@ -29,24 +31,30 @@ db_config = {
     'port': 9030,
 }
 
+POOL_DB = PooledDB(
+    creator=pymysql,  # 使用链接数据库的模块
+    maxconnections=20,  # 连接池允许的最大连接数，0和None表示不限制连接数
+    mincached=3,  # 初始化时，链接池中至少创建的空闲的链接，0表示不创建
+    maxcached=5,  # 链接池中最多闲置的链接，0和None不限制
+    maxshared=1,  # 链接池中最多共享的链接数量，0和None表示全部共享
+    blocking=True,  # 连接池中如果没有可用连接后，是否阻塞等待。True，等待；False，不等待然后报错
+    maxusage=None,  # 一个链接最多被重复使用的次数，None表示无限制
+    setsession=[],  # 开始会话前执行的命令列表。如：["set datestyle to ...", "set time zone ..."]
+    ping=0,
+    # ping MySQL服务端，检查是否服务可用。如：0：never 1：default 2：when a cursor is created 4：when a query is executed 7：always
+    host=db_config.get('host'),
+    port=db_config.get('port'),
+    user=db_config.get('user'),
+    password=db_config.get('password'),
+    database=db_config.get('database'),
+    charset='utf8'
+)
+
 
 # 主程序入口
 def task_run(task_name, start_date=None, end_date=None):
     if task_name is None or task_name == '':
-        print('任务表名不能为空！')
-        sys.exit(1)
-
-    # 构建请求url
-    request_url = build_request(task_name, start_date, end_date)
-
-    print(global_access_token)
-
-
-# 构建对应请求
-def build_request(task_name, start_date, end_date):
-    print('开始构建请求：', task_name, start_date, end_date)
-    if task_name is None or task_name == '':
-        print('任务表名不能为空！')
+        print('待执行任务表名不能为空！')
         sys.exit(1)
 
     # 获取routing
@@ -71,16 +79,14 @@ def build_request(task_name, start_date, end_date):
             params['orderBy'] = 'updateTime',
             params['startDate'] = start_date + ' 00:00:01',
             params['endDate'] = end_date + ' 23:59:59'
-            get_data_write_db(ykb_request_url, params)
+            get_data_write_db(ykb_request_url, params,task_name )
     else:
-        get_data_write_db(ykb_request_url, params)
-
-    return ''
+        get_data_write_db(ykb_request_url, params, task_name)
 
 
 # 分页请求，并写入数据库
-def get_data_write_db(ykb_request_url, params):
-    print(f"分页查询：[{ykb_request_url}]时，至少指定一个开始时间：[{params}]")
+def get_data_write_db(ykb_request_url, params, table_name):
+    print(f"分页查询并入库：[{ykb_request_url}]，params：[{params}]，tableName:[{table_name}]")
 
     page_start = 0  # 查询起始页
     page_count = 100  # 每次查询总行数
@@ -90,30 +96,61 @@ def get_data_write_db(ykb_request_url, params):
     total_count = sys.maxsize
     while page_start < total_count:
         print(f"分页查询, page_start：[{page_start}]，page_count：[{page_count}]")
-        # 请求接口
-        datas, count = load_data(ykb_request_url, params)
+        # 请求接口, 获取数据和总行数
+        res = requests.get(ykb_request_url, params=params)
+        if res.status_code != 200:
+            print('易快报请求异常！')
+            sys.exit(1)
+
+        count = 0
+        datas = None
+        if 'count' in json.loads(res.text):
+            count = json.loads(res.text)['count']
+        if 'items' in json.loads(res.text):
+            datas = json.loads(res.text)['items']
 
         # 写入数据库
-        parse_receipt_list(datas)
+        parse_receipt_list(table_name, datas)
 
-        # 计算下次请求的分页起始值
+        # 无分页，则代表一次性请求完了，直接跳出循环
+        if count <= 0:
+            break
+
+        # 否则计算下次请求的分页起始值
         total_count = convert_to_nearest_multiple(count, page_count)
         page_start += page_count
         params.update({'start': page_start})
 
 
 # 解析单据列表接口结果集
-def parse_receipt_list(datas):
-    if datas is None or len(datas) <= 0:
-        print('单据列表结果为空！')
+def parse_receipt_list(table_name, datas):
+    if table_name is None or table_name == '' or datas is None or len(datas) <= 0:
+        print(f'待解析数据不能为空, tableName:[{table_name}]')
         sys.exit(1)
 
-    list_count = 0
-    while list_count < len(datas):
-        receipt_object = ReceiptObject(**datas[list_count])
-        print(f"解析结果，id:[{receipt_object.id}], num:[{list_count}]")
+    # 拼接insert-SQL（insert into (xxx) value）
+    insert_sql_prefix = get_insert_sql_prefix(table_name)
+    print(insert_sql_prefix)
 
-        list_count += 1
+    # list_count = 0
+    # while list_count < len(datas):
+    #     receipt_object = ReceiptObject(**datas[list_count])
+    #     print(f"解析结果，id:[{receipt_object.id}], num:[{list_count}]")
+    #     list_count += 1
+
+    results = []
+    if table_name == TableNameEnum.tbName_ykb_staffs_list.table_name:
+        for data in datas:
+            staffs = Staffs(**data)
+            tuple1 = (str(staffs.id), str(staffs.name), str(staffs.nickName), str(staffs.code), str(','.join(staffs.departments)),
+                      str(staffs.defaultDepartment), str(staffs.cellphone), str(staffs.active), str(staffs.userId), str(staffs.email),
+                      str(staffs.showEmail), str(staffs.external), str(staffs.authState), str(staffs.globalRoaming), str(staffs.note)
+                      #,
+                      #json.dumps(staffs.staffCustomForm, ensure_ascii=False), staffs.updateTime, staffs.createTime
+                      )
+            results.append(tuple1)
+    # 落库
+    execute_insert_sql(insert_sql_prefix, results)
 
 
 # 获取易快报Token
@@ -137,7 +174,7 @@ def get_token():
     if res.status_code == 200:
         result = res.json()
         global_access_token = result['value']['accessToken']
-        access_token_expire = datetime.fromtimestamp(result['value']['expireTime']/1000)
+        access_token_expire = datetime.fromtimestamp(result['value']['expireTime'] / 1000)
         print(f"获取易快报access_token:[{global_access_token}], 过期时间:[{access_token_expire}]")
         return global_access_token
     else:
@@ -145,34 +182,56 @@ def get_token():
         sys.exit(1)
 
 
-# 调用API接口获取数据,返回数据和总行数
-def load_data(url, params):
-    res = requests.get(url, params=params)
-    if res.status_code == 200:
-        count = json.loads(res.text)['count']
-        datas = json.loads(res.text)['items']
-        print(f"接口查询范围内数据总行数:[{count}]")
-        return datas, count
-    else:
-        print('易快报请求异常！')
+# 获取表的schema，并拼接前半句insert语句
+def get_insert_sql_prefix(table_name):
+    if table_name is None or table_name == '':
+        print('获取表的schema时，传入的表名不能为空')
+        return ''
+    str_sql = """select concat('insert into ',table_schema,'.',table_name,'(',GROUP_CONCAT(column_name),') value(', GROUP_CONCAT('%s'), ')') as insert_sql_prefix
+        from (                  
+            select 
+                table_schema,
+                table_name,
+                column_name,
+                ordinal_position
+            from information_schema.columns
+            where table_schema='ods_canal' 
+            and table_name='""" + table_name + """' and column_name not in ('etl_insert_time','etl_update_time') 
+            and column_name not in ('staffCustomForm','updateTime','createTime') 
+            order by ordinal_position
+        ) T group by table_schema,table_name;"""
+    return execute_select_sql(str_sql)
 
 
-# 连接数据库
-try:
-    connection = pymysql.connect(**db_config)
-    with connection.cursor() as cursor:
-        print('Connected to the database')
+# SQL查询方法
+def execute_select_sql(sql, args=None):
+    conn = POOL_DB.connection()
+    curr = conn.cursor()
+    try:
+        curr.execute(sql, args)
+        return curr.fetchone()
+    except Exception as ex:
+        print(f'insert exception: {ex}')
+        conn.rollback()
+    finally:
+        conn.close()
+        curr.close()
 
-        # 在这里执行数据库操作，例如查询、插入等
 
-except pymysql.Error as e:
-    print(f'Error connecting to the database: {e}')
-
-finally:
-    # 关闭数据库连接
-    if 'connection' in locals() and connection.open:
-        connection.close()
-        print('Disconnected from the database')
+# SQL插入方法
+def execute_insert_sql(sql, args=None):
+    conn = POOL_DB.connection()
+    curr = conn.cursor()
+    try:
+        result = curr.executemany(sql, args)
+        conn.commit()
+        return result
+    except Exception as ex:
+        print(f'insert exception: {ex}')
+        conn.rollback()
+    finally:
+        conn.close()
+        curr.close()
 
 
 # 数据表对应url枚举类
@@ -224,6 +283,32 @@ class ReceiptFormDetailApportionsObject:
                 self.__dict__[key] = ReceiptObject(**value)
             else:
                 self.__dict__[key] = value
+
+
+# 员工列表
+class Staffs:
+    id: str
+    name: str
+    nickName: str
+    code: str
+    departments: List[str]
+    defaultDepartment: str
+    cellphone: str
+    active: bool
+    userId: str
+    email: str
+    showEmail: str
+    external: bool
+    authState: bool
+    globalRoaming: str
+    note: str
+    staffCustomForm: dict
+    updateTime: str
+    createTime: str
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            self.__dict__[key] = value
 
 
 # 单据表单form明细-费用类型
@@ -344,8 +429,6 @@ class ReceiptObject:
                 self.__dict__[key] = value
 
 
-
 if __name__ == '__main__':
     task_run('ods_ppy_ykb_staffs_list')
-    task_run('ods_ppy_ykb_receipt_list', '2023-11-07', '2023-11-07')
-
+    # task_run('ods_ppy_ykb_receipt_list', '2023-11-07', '2023-11-07')
