@@ -12,8 +12,8 @@ from dbutils.pooled_db import PooledDB
 # global_access_token = None
 # access_token_expire = None
 
-global_access_token = 'ID01xE56WU3wS3:ID_3gmIXhB0M38'
-access_token_expire = datetime(2024, 3, 9, 19, 17, 53)
+global_access_token = 'ID01xGU3QdH9Yb:ID_3gmIXhB0M38'
+access_token_expire = datetime(2024, 3, 11, 12, 5, 54)
 
 # 易快报请求参数
 base_ykb_request_url = 'https://dd2.ekuaibao.com/api/openapi'
@@ -79,7 +79,7 @@ def task_run(task_name, start_date=None, end_date=None):
             params['orderBy'] = 'updateTime',
             params['startDate'] = start_date + ' 00:00:01',
             params['endDate'] = end_date + ' 23:59:59'
-            get_data_write_db(ykb_request_url, params,task_name )
+            get_data_write_db(ykb_request_url, params, task_name)
     else:
         get_data_write_db(ykb_request_url, params, task_name)
 
@@ -130,7 +130,6 @@ def parse_receipt_list(table_name, datas):
 
     # 拼接insert-SQL（insert into (xxx) value）
     insert_sql_prefix = get_insert_sql_prefix(table_name)
-    print(insert_sql_prefix)
 
     # list_count = 0
     # while list_count < len(datas):
@@ -142,13 +141,14 @@ def parse_receipt_list(table_name, datas):
     if table_name == TableNameEnum.tbName_ykb_staffs_list.table_name:
         for data in datas:
             staffs = Staffs(**data)
-            tuple1 = (str(staffs.id), str(staffs.name), str(staffs.nickName), str(staffs.code), str(','.join(staffs.departments)),
-                      str(staffs.defaultDepartment), str(staffs.cellphone), str(staffs.active), str(staffs.userId), str(staffs.email),
-                      str(staffs.showEmail), str(staffs.external), str(staffs.authState), str(staffs.globalRoaming), str(staffs.note)
-                      #,
-                      #json.dumps(staffs.staffCustomForm, ensure_ascii=False), staffs.updateTime, staffs.createTime
-                      )
-            results.append(tuple1)
+            mixed_tuple = (staffs.id, staffs.name, staffs.nickName, staffs.code, ','.join(staffs.departments),
+                           staffs.defaultDepartment, staffs.cellphone, staffs.active, staffs.userId, staffs.email,
+                           staffs.showEmail, staffs.external, staffs.authState, staffs.globalRoaming, staffs.note,
+                           json.dumps(staffs.staffCustomForm) if staffs.staffCustomForm is not None else None,
+                           staffs.updateTime, staffs.createTime)
+            # 将元组中的所有元素转换为字符串，并将 None 值替换为空字符串
+            string_tuple = tuple(str(item) if item is not None else '' for item in mixed_tuple)
+            results.append(string_tuple)
     # 落库
     execute_insert_sql(insert_sql_prefix, results)
 
@@ -187,7 +187,7 @@ def get_insert_sql_prefix(table_name):
     if table_name is None or table_name == '':
         print('获取表的schema时，传入的表名不能为空')
         return ''
-    str_sql = """select concat('insert into ',table_schema,'.',table_name,'(',GROUP_CONCAT(column_name),') value(', GROUP_CONCAT('%s'), ')') as insert_sql_prefix
+    str_sql = """select concat('insert into ',table_schema,'.',table_name,'(',GROUP_CONCAT(column_name),') values (', GROUP_CONCAT('%s'), ')') as insert_sql_prefix
         from (                  
             select 
                 table_schema,
@@ -197,19 +197,19 @@ def get_insert_sql_prefix(table_name):
             from information_schema.columns
             where table_schema='ods_canal' 
             and table_name='""" + table_name + """' and column_name not in ('etl_insert_time','etl_update_time') 
-            and column_name not in ('staffCustomForm','updateTime','createTime') 
             order by ordinal_position
         ) T group by table_schema,table_name;"""
-    return execute_select_sql(str_sql)
+    return execute_select_one_sql(str_sql)
 
 
 # SQL查询方法
-def execute_select_sql(sql, args=None):
+def execute_select_one_sql(sql, args=None):
     conn = POOL_DB.connection()
     curr = conn.cursor()
     try:
         curr.execute(sql, args)
-        return curr.fetchone()
+        result, = curr.fetchone()
+        return result
     except Exception as ex:
         print(f'insert exception: {ex}')
         conn.rollback()
@@ -223,8 +223,10 @@ def execute_insert_sql(sql, args=None):
     conn = POOL_DB.connection()
     curr = conn.cursor()
     try:
+        print(f'insert sql execute row:[{len(args)}]')
         result = curr.executemany(sql, args)
         conn.commit()
+        print(f'insert sql execute success!, row:[{result}]')
         return result
     except Exception as ex:
         print(f'insert exception: {ex}')
