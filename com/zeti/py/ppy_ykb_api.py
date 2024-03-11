@@ -12,8 +12,8 @@ from dbutils.pooled_db import PooledDB
 # global_access_token = None
 # access_token_expire = None
 
-global_access_token = 'ID01xGU3QdH9Yb:ID_3gmIXhB0M38'
-access_token_expire = datetime(2024, 3, 11, 12, 5, 54)
+global_access_token = 'ID01xHeft1Hpdd:ID_3gmIXhB0M38'
+access_token_expire = datetime(2024, 3, 11, 16, 48, 54)
 
 # 易快报请求参数
 base_ykb_request_url = 'https://dd2.ekuaibao.com/api/openapi'
@@ -74,12 +74,20 @@ def task_run(task_name, start_date=None, end_date=None):
             sys.exit(1)
 
         receipt_type_list = ['expense', 'loan', 'payment', 'requisition']
-        for i in range(len(receipt_type_list)):
-            params['type'] = receipt_type_list[i],
+        for receipt_type in receipt_type_list:
+            params['type'] = receipt_type,
             params['orderBy'] = 'updateTime',
             params['startDate'] = start_date + ' 00:00:01',
             params['endDate'] = end_date + ' 23:59:59'
             get_data_write_db(ykb_request_url, params, task_name)
+
+    # 单据模板列表(expense:报销单, loan:借款单, requisition:申请单, payment:付款单, custom:通用审批单)
+    elif task_name == TableNameEnum.tbName_ykb_receipt_template_type.table_name:
+        template_types = ['expense', 'loan', 'requisition', 'payment', 'custom']
+        for template_type in template_types:
+            params['type'] = template_type
+            get_data_write_db(ykb_request_url, params, task_name)
+
     else:
         get_data_write_db(ykb_request_url, params, task_name)
 
@@ -131,26 +139,57 @@ def parse_receipt_list(table_name, datas):
     # 拼接insert-SQL（insert into (xxx) value）
     insert_sql_prefix = get_insert_sql_prefix(table_name)
 
-    # list_count = 0
-    # while list_count < len(datas):
-    #     receipt_object = ReceiptObject(**datas[list_count])
-    #     print(f"解析结果，id:[{receipt_object.id}], num:[{list_count}]")
-    #     list_count += 1
-
-    results = []
+    sql_params = []
+    # 员工列表
     if table_name == TableNameEnum.tbName_ykb_staffs_list.table_name:
         for data in datas:
             staffs = Staffs(**data)
-            mixed_tuple = (staffs.id, staffs.name, staffs.nickName, staffs.code, ','.join(staffs.departments),
+            staff_tuple = (staffs.id, staffs.name, staffs.nickName, staffs.code, ','.join(staffs.departments),
                            staffs.defaultDepartment, staffs.cellphone, staffs.active, staffs.userId, staffs.email,
                            staffs.showEmail, staffs.external, staffs.authState, staffs.globalRoaming, staffs.note,
                            json.dumps(staffs.staffCustomForm) if staffs.staffCustomForm is not None else None,
                            staffs.updateTime, staffs.createTime)
             # 将元组中的所有元素转换为字符串，并将 None 值替换为空字符串
-            string_tuple = tuple(str(item) if item is not None else '' for item in mixed_tuple)
-            results.append(string_tuple)
+            string_tuple = tuple(str(item) if item is not None else '' for item in staff_tuple)
+            sql_params.append(string_tuple)
+
+    # 部门列表
+    elif table_name == TableNameEnum.tbName_ykb_department_type.table_name:
+        for data in datas:
+            department = Departments(**data)
+            department_tuple = (department.id, department.name, department.parentId, department.active, department.code,
+                                json.dumps(department.form) if department.form is not None else None,
+                                department.updateTime, department.createTime)
+            # 将元组中的所有元素转换为字符串，并将 None 值替换为空字符串
+            string_tuple = tuple(str(item) if item is not None else '' for item in department_tuple)
+            sql_params.append(string_tuple)
+
+    # 费用类型列表
+    elif table_name == TableNameEnum.tbName_ykb_expense_type.table_name:
+        for data in datas:
+            fee_types = FeeTypes(**data)
+            fee_tuple = (fee_types.id, fee_types.name, fee_types.parentId, fee_types.active, fee_types.code)
+            sql_params.append(fee_tuple)
+
+    # 项目类型列表
+    elif table_name == TableNameEnum.tbName_ykb_project_type.table_name:
+        for data in datas:
+            project_types = ProjectTypes(**data)
+            project_tuple = (project_types.id, project_types.name, project_types.parentId, project_types.active,
+                             project_types.code, project_types.dimensionId, project_types.updateTime,
+                             project_types.createTime)
+            sql_params.append(project_tuple)
+
+    # 模板列表
+    elif table_name == TableNameEnum.tbName_ykb_receipt_template_type.table_name:
+        for data in datas:
+            template_types = TemplateTypes(**data)
+            template_tuple = (template_types.id, template_types.name, template_types.active,
+                             json.dumps(template_types.visibility) if template_types.visibility is not None else None)
+            sql_params.append(template_tuple)
+
     # 落库
-    execute_insert_sql(insert_sql_prefix, results)
+    execute_insert_sql(insert_sql_prefix, sql_params)
 
 
 # 获取易快报Token
@@ -223,7 +262,6 @@ def execute_insert_sql(sql, args=None):
     conn = POOL_DB.connection()
     curr = conn.cursor()
     try:
-        print(f'insert sql execute row:[{len(args)}]')
         result = curr.executemany(sql, args)
         conn.commit()
         print(f'insert sql execute success!, row:[{result}]')
@@ -239,21 +277,21 @@ def execute_insert_sql(sql, args=None):
 # 数据表对应url枚举类
 class TableNameEnum(Enum):
     # 易快报-员工列表(维度数据)
-    tbName_ykb_staffs_list = ('ods_ppy_ykb_staffs_list', '/v1/staffs')
+    tbName_ykb_staffs_list = ('ods_ppy_ykb_new_staffs_list', '/v1/staffs')
     # 易快报-部门类型(维度数据)
-    tbName_ykb_department_type = ('ods_ppy_ykb_department_type', '/v1/departments')
+    tbName_ykb_department_type = ('ods_ppy_ykb_new_department_type', '/v1/departments')
     # 易快报-费用类型(维度数据)
-    tbName_ykb_expense_type = ('ods_ppy_ykb_expense_type', '/v1/feeTypes')
+    tbName_ykb_expense_type = ('ods_ppy_ykb_new_expense_type', '/v1/feeTypes')
     # 易快报-项目类型(维度数据)
-    tbName_ykb_project_type = ('ods_ppy_ykb_project_type', '/v1/dimensions/items')
+    tbName_ykb_project_type = ('ods_ppy_ykb_new_project_type', '/v1/dimensions/items')
     # 易快报-单据模板类型(维度数据)
-    tbName_ykb_receipt_template_type = ('ods_ppy_ykb_receipt_template_type', '/v1/specifications/latestByType')
+    tbName_ykb_receipt_template_type = ('ods_ppy_ykb_new_template_type', '/v1/specifications/latestByType')
     # 易快报-单据清单(事实数据)
-    tbName_ykb_receipt_list = ('ods_ppy_ykb_receipt_list', '/v1.1/docs/getApplyList')
+    tbName_ykb_receipt_list = ('ods_ppy_ykb_new_receipt_list', '/v1.1/docs/getApplyList')
     # 易快报-单据清单明细(事实数据)
-    tbName_ykb_receipt_list_detail = ('ods_ppy_ykb_receipt_list_detail', None)
+    tbName_ykb_receipt_list_detail = ('ods_ppy_ykb_new_receipt_list_detail', None)
     # 易快报-单据清单明细分摊(事实数据)
-    tbName_ykb_receipt_list_detail_aux = ('ods_ppy_ykb_receipt_list_detail_aux', None)
+    tbName_ykb_receipt_list_detail_aux = ('ods_ppy_ykb_new_receipt_list_detail_aux', None)
 
     def __init__(self, table_name, routing):
         self.table_name = table_name
@@ -309,8 +347,70 @@ class Staffs:
     createTime: str
 
     def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            self.__dict__[key] = value
+        for key in self.__annotations__:
+            if key in kwargs:
+                setattr(self, key, kwargs[key])
+
+
+# 部门列表
+class Departments:
+    id: str
+    name: str
+    parentId: str
+    active: str
+    code: str
+    form: dict
+    updateTime: str
+    createTime: str
+
+    def __init__(self, **kwargs):
+        for key in self.__annotations__:
+            if key in kwargs:
+                setattr(self, key, kwargs[key])
+
+
+# 费用类型
+class FeeTypes:
+    id: str
+    name: str
+    parentId: str
+    active: str
+    code: str
+
+    def __init__(self, **kwargs):
+        for key in self.__annotations__:
+            if key in kwargs:
+                setattr(self, key, kwargs[key])
+
+
+# 项目类型
+class ProjectTypes:
+    id: str
+    name: str
+    parentId: str
+    active: str
+    code: str
+    dimensionId: str
+    updateTime: str
+    createTime: str
+
+    def __init__(self, **kwargs):
+        for key in self.__annotations__:
+            if key in kwargs:
+                setattr(self, key, kwargs[key])
+
+
+# 模板列表
+class TemplateTypes:
+    id: str
+    name: str
+    active: str
+    visibility: dict
+
+    def __init__(self, **kwargs):
+        for key in self.__annotations__:
+            if key in kwargs:
+                setattr(self, key, kwargs[key])
 
 
 # 单据表单form明细-费用类型
@@ -432,5 +532,5 @@ class ReceiptObject:
 
 
 if __name__ == '__main__':
-    task_run('ods_ppy_ykb_staffs_list')
-    # task_run('ods_ppy_ykb_receipt_list', '2023-11-07', '2023-11-07')
+    task_run('ods_ppy_ykb_new_template_type')
+    # task_run('ods_ppy_ykb_new_receipt_list', '2023-11-07', '2023-11-07')
