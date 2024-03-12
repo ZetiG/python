@@ -12,8 +12,8 @@ from dbutils.pooled_db import PooledDB
 # global_access_token = None
 # access_token_expire = None
 
-global_access_token = 'ID01xHeft1Hpdd:ID_3gmIXhB0M38'
-access_token_expire = datetime(2024, 3, 11, 16, 48, 54)
+global_access_token = 'ID01xJ0ngwZOCX:ID_3gmIXhB0M38'
+access_token_expire = datetime(2024, 3, 12, 18, 29, 23)
 
 # 易快报请求参数
 base_ykb_request_url = 'https://dd2.ekuaibao.com/api/openapi'
@@ -77,7 +77,7 @@ def task_run(task_name, start_date=None, end_date=None):
         for receipt_type in receipt_type_list:
             params['type'] = receipt_type,
             params['orderBy'] = 'updateTime',
-            params['startDate'] = start_date + ' 00:00:01',
+            params['startDate'] = start_date + ' 00:00:00',
             params['endDate'] = end_date + ' 23:59:59'
             get_data_write_db(ykb_request_url, params, task_name)
 
@@ -187,6 +187,11 @@ def parse_receipt_list(table_name, datas):
             template_tuple = (template_types.id, template_types.name, template_types.active,
                              json.dumps(template_types.visibility) if template_types.visibility is not None else None)
             sql_params.append(template_tuple)
+
+    elif table_name == TableNameEnum.tbName_ykb_receipt_list.table_name:
+        for data in datas:
+            receipt = ReceiptObject(**data)
+            print(receipt)
 
     # 落库
     execute_insert_sql(insert_sql_prefix, sql_params)
@@ -313,18 +318,6 @@ def convert_to_nearest_multiple(t1, f1):
     return ((t1 // f1) + 1) * f1
 
 
-class ReceiptFormDetailApportionsObject:
-    apportionForm: dict
-    specificationId: str
-
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            if isinstance(value, dict):
-                self.__dict__[key] = ReceiptObject(**value)
-            else:
-                self.__dict__[key] = value
-
-
 # 员工列表
 class Staffs:
     id: str
@@ -413,6 +406,18 @@ class TemplateTypes:
                 setattr(self, key, kwargs[key])
 
 
+class ReceiptFormDetailApportionsObject:
+    apportionForm: dict
+    specificationId: str
+
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            if isinstance(value, dict):
+                self.__dict__[key] = ReceiptObject(**value)
+            else:
+                self.__dict__[key] = value
+
+
 # 单据表单form明细-费用类型
 class ReceiptFormDetailFeeTypeObject:
     amount: dict
@@ -446,7 +451,7 @@ class ReceiptFormDetailObject:
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
             if isinstance(value, dict):
-                self.__dict__[key] = ReceiptObject(**value)
+                self.__dict__[key] = ReceiptFormObject(**value)
             else:
                 self.__dict__[key] = value
 
@@ -500,27 +505,21 @@ class ReceiptFormObject:
 
 # 单据类
 class ReceiptObject:
-    pipeline: int
-    grayver: str
-    dbVersion: int
-    threadId: str
-    version: int
-    active: bool
-    createTime: int
-    updateTime: int
+    id: str
+    formType: str
+    active: str
+    state: str
+    flowType: str
+    invoiceRemind: str
     corporationId: str
     sourceCorporationId: str
     dataCorporationId: str
     ownerId: str
     ownerDefaultDepartment: str
-    state: str
-    flowType: str
-    formType: str
     logs: list
     actions: dict
-    invoiceRemind: bool
-    appId: str
-    id: str
+    createTime: int
+    updateTime: int
     form: ReceiptFormObject
 
     def __init__(self, **kwargs):
@@ -532,5 +531,5 @@ class ReceiptObject:
 
 
 if __name__ == '__main__':
-    task_run('ods_ppy_ykb_new_template_type')
-    # task_run('ods_ppy_ykb_new_receipt_list', '2023-11-07', '2023-11-07')
+    # task_run('ods_ppy_ykb_new_receipt_list')
+    task_run('ods_ppy_ykb_new_receipt_list', '2023-11-07', '2023-11-07')
