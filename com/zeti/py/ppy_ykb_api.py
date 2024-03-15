@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pymysql
 import requests
-from typing import Optional, NamedTuple, List
+from typing import List
 from enum import Enum
 from dbutils.pooled_db import PooledDB
 
@@ -12,8 +12,8 @@ from dbutils.pooled_db import PooledDB
 # global_access_token = None
 # access_token_expire = None
 
-global_access_token = 'ID01xJ0ngwZOCX:ID_3gmIXhB0M38'
-access_token_expire = datetime(2024, 3, 12, 18, 29, 23)
+global_access_token = 'ID01xNTVNQrH3h:ID_3gmIXhB0M38'
+access_token_expire = datetime(2024, 3, 15, 17, 17, 37)
 
 # 易快报请求参数
 base_ykb_request_url = 'https://dd2.ekuaibao.com/api/openapi'
@@ -68,6 +68,7 @@ def task_run(task_name, start_date=None, end_date=None):
         'accessToken': get_token()
     }
 
+    # 单据列表
     if task_name == TableNameEnum.tbName_ykb_receipt_list.table_name:
         if start_date is None or start_date == '':
             print(f"执行任务：[{task_name}]时，至少指定一个开始时间：[{start_date}]")
@@ -81,13 +82,14 @@ def task_run(task_name, start_date=None, end_date=None):
             params['endDate'] = end_date + ' 23:59:59'
             get_data_write_db(ykb_request_url, params, task_name)
 
-    # 单据模板列表(expense:报销单, loan:借款单, requisition:申请单, payment:付款单, custom:通用审批单)
+    # 模板列表(expense:报销单, loan:借款单, requisition:申请单, payment:付款单, custom:通用审批单)
     elif task_name == TableNameEnum.tbName_ykb_receipt_template_type.table_name:
         template_types = ['expense', 'loan', 'requisition', 'payment', 'custom']
         for template_type in template_types:
             params['type'] = template_type
             get_data_write_db(ykb_request_url, params, task_name)
 
+    # 其他表
     else:
         get_data_write_db(ykb_request_url, params, task_name)
 
@@ -103,7 +105,8 @@ def get_data_write_db(ykb_request_url, params, table_name):
 
     total_count = sys.maxsize
     while page_start < total_count:
-        print(f"分页查询, page_start：[{page_start}]，page_count：[{page_count}]")
+        print(f"表[{table_name}]分页查询, 总行数:[{None if total_count>10000000 else total_count}], "  # total_count过滤初始值
+              f"page_start：[{page_start}]，page_count：[{page_count}]")
         # 请求接口, 获取数据和总行数
         res = requests.get(ykb_request_url, params=params)
         if res.status_code != 200:
@@ -136,7 +139,7 @@ def parse_receipt_list(table_name, datas):
         print(f'待解析数据不能为空, tableName:[{table_name}]')
         sys.exit(1)
 
-    # 拼接insert-SQL（insert into (xxx) value）
+    # 拼接insert-SQL（insert into (xxx) value(%s,%s)）
     insert_sql_prefix = get_insert_sql_prefix(table_name)
 
     sql_params = []
@@ -188,13 +191,96 @@ def parse_receipt_list(table_name, datas):
                              json.dumps(template_types.visibility) if template_types.visibility is not None else None)
             sql_params.append(template_tuple)
 
+    # 单据列表
     elif table_name == TableNameEnum.tbName_ykb_receipt_list.table_name:
+        sql_params_det = []
+        sql_params_aux = []
         for data in datas:
             receipt = ReceiptObject(**data)
-            print(receipt)
+
+            if receipt is None or receipt.form is None:
+                print('单据表转换结果为空，退出执行')
+                sys.exit(1)
+            elif receipt.form.details is not None and len(receipt.form.details) > 0:
+                # 处理单据明细
+                for detail in receipt.form.details:
+                    # 处理单据分摊明细
+                    if detail.feeTypeForm is not None and detail.feeTypeForm.apportions is not None:
+                        for apportion in detail.feeTypeForm.apportions:
+                            # 单据明细分摊结果集
+                            receipt_aux_tuple = (datetime.fromtimestamp(receipt.createTime/1000).strftime('%Y-%m-%d'),
+                                                 receipt.id, detail.feeTypeForm.detailId,
+                                                 apportion.apportionForm.apportionId, apportion.apportionForm.project,
+                                                 apportion.specificationId, apportion.apportionForm.apportionPercent,
+                                                 apportion.apportionForm.expenseDepartment,
+                                                 apportion.apportionForm.apportionMoney['standard'],
+                                                 json.dumps(apportion.apportionForm.apportionMoney))
+                            sql_params_aux.append(receipt_aux_tuple)
+
+                    # 单据明细结果集
+                    receipt_det_tuple = (datetime.fromtimestamp(receipt.createTime/1000).strftime('%Y-%m-%d'),
+                                         receipt.id, detail.feeTypeForm.detailId, detail.feeTypeId,
+                                         detail.specificationId, detail.feeTypeForm.project,
+                                         detail.feeTypeForm.amount['standard'], json.dumps(detail.feeTypeForm.amount),
+                                         detail.feeTypeForm.feeDate, json.dumps(detail.feeTypeForm.taxAmount),
+                                         json.dumps([apportion.to_json() for apportion in detail.feeTypeForm.apportions]
+                                                    ) if len(detail.feeTypeForm.apportions) > 0 else '{}',
+                                         json.dumps(detail.feeTypeForm.attachments),
+                                         json.dumps(detail.feeTypeForm.invoiceForm),
+                                         json.dumps(detail.feeTypeForm.consumptionReasons),
+                                         json.dumps(detail.feeType))
+                    sql_params_det.append(receipt_det_tuple)
+
+            # 单据
+            receipt_tuple = (datetime.fromtimestamp(receipt.createTime/1000).strftime('%Y-%m-%d'),
+                             receipt.id, receipt.form.code, receipt.form.title, receipt.active, receipt.form.project,
+                             receipt.form.specificationId, receipt.formType, receipt.state, receipt.flowType,
+                             receipt.corporationId, receipt.ownerId, receipt.ownerDefaultDepartment,
+                             receipt.form.payDate, receipt.form.payeeId, receipt.form.payMoney['standard'],
+                             json.dumps(receipt.form.payMoney), receipt.form.voucherNo, receipt.form.submitDate,
+                             receipt.form.expenseDate, receipt.form.flowEndTime, receipt.form.description,
+                             receipt.form.expenseMoney['standard'], json.dumps(receipt.form.expenseMoney),
+                             receipt.form.submitterId, receipt.form.legalEntity, receipt.form.voucherStatus,
+                             json.dumps(receipt.form.companyRealPay), receipt.form.paymentChannel,
+                             json.dumps(receipt.form.writtenOffMoney), receipt.form.paymentAccountId,
+                             receipt.form.expenseDepartment, receipt.form.preNodeApprovedTime,
+                             receipt.form.timeToEnterPendingPayment,
+                             json.dumps(receipt.form.writtenOffRecords),
+                             json.dumps(receipt.form.payPlan),
+                             json.dumps(receipt.form.attachments),
+                             json.dumps(receipt.logs),
+                             json.dumps(receipt.actions),
+                             datetime.fromtimestamp(receipt.createTime/1000).strftime("%Y-%m-%d %H:%M:%S"),
+                             datetime.fromtimestamp(receipt.updateTime / 1000).strftime("%Y-%m-%d %H:%M:%S"))
+
+            sql_params.append(receipt_tuple)
+
+        # 优先落库单据明细和分摊明细
+        # 单据明细
+        detail_prefix = get_insert_sql_prefix(TableNameEnum.tbName_ykb_receipt_list_detail.table_name)
+        sql_params_batch_deal('table_detail', detail_prefix, sql_params_det)
+
+        # 分摊明细
+        aux_prefix = get_insert_sql_prefix(TableNameEnum.tbName_ykb_receipt_list_detail_aux.table_name)
+        sql_params_batch_deal('table_aux', aux_prefix, sql_params_aux)
 
     # 落库
-    execute_insert_sql(insert_sql_prefix, sql_params)
+    row = execute_insert_sql(insert_sql_prefix, sql_params)
+    print(f"表:[{table_name}]处理，待处理行数[{len(sql_params)}], 入库完成[{row}]条")
+
+
+# 分批处理单据明细、分摊明细
+def sql_params_batch_deal(table_name, insert_sql_prefix, sql_params):
+    if len(sql_params) <= 0:
+        return
+    batch_size = 200  # 每批的大小
+    count = len(sql_params)
+    for start in range(0, count, batch_size):
+        end = min(start + batch_size, count)
+        batch_params = sql_params[start:end]
+        row = execute_insert_sql(insert_sql_prefix, batch_params)
+        print(f"表:[{table_name}]分批处理，总数[{count}], 每批[{batch_size}]条, 共[{count//batch_size}]批, "
+              f"当前第 {start//batch_size+1} 批, 该批入库完成[{row}]条")
 
 
 # 获取易快报Token
@@ -263,20 +349,36 @@ def execute_select_one_sql(sql, args=None):
 
 
 # SQL插入方法
-def execute_insert_sql(sql, args=None):
+def execute_insert_sql(sql, params):
+    if params is None or len(params) <= 0:
+        print('insert sql execute fail! params is None!')
+        return
+
     conn = POOL_DB.connection()
     curr = conn.cursor()
     try:
-        result = curr.executemany(sql, args)
+        result = curr.executemany(sql, params)
         conn.commit()
-        print(f'insert sql execute success!, row:[{result}]')
+        print(f'insert sql execute success!')
         return result
     except Exception as ex:
-        print(f'insert exception: {ex}')
+        print(f'insert error: {ex}')
         conn.rollback()
+        print('ERROR SQL:', format_insert_sql(sql, params))
+        sys.exit(1)
     finally:
         conn.close()
         curr.close()
+
+
+def format_insert_sql(sql, params):
+    # 构建 SQL 语句的值部分
+    values = ', '.join([str(row) for row in params])
+
+    # 拼接完整的 SQL 语句
+    full_sql = f"{sql[:-1]} values {values};"
+
+    return full_sql
 
 
 # 数据表对应url枚举类
@@ -294,9 +396,9 @@ class TableNameEnum(Enum):
     # 易快报-单据清单(事实数据)
     tbName_ykb_receipt_list = ('ods_ppy_ykb_new_receipt_list', '/v1.1/docs/getApplyList')
     # 易快报-单据清单明细(事实数据)
-    tbName_ykb_receipt_list_detail = ('ods_ppy_ykb_new_receipt_list_detail', None)
+    tbName_ykb_receipt_list_detail = ('ods_ppy_ykb_new_receipt_list_details', None)
     # 易快报-单据清单明细分摊(事实数据)
-    tbName_ykb_receipt_list_detail_aux = ('ods_ppy_ykb_new_receipt_list_detail_aux', None)
+    tbName_ykb_receipt_list_detail_aux = ('ods_ppy_ykb_new_receipt_list_details_aux', None)
 
     def __init__(self, table_name, routing):
         self.table_name = table_name
@@ -313,9 +415,7 @@ class TableNameEnum(Enum):
 def convert_to_nearest_multiple(t1, f1):
     if t1 % f1 == 0:
         return t1  # 如果已经是f1的倍数，则无需转换
-
-    # 计算大于t1且是最小的f1的倍数的下一个值
-    return ((t1 // f1) + 1) * f1
+    return ((t1 // f1) + 1) * f1    # 计算大于t1且是最小的f1的倍数的下一个值
 
 
 # 员工列表
@@ -406,22 +506,53 @@ class TemplateTypes:
                 setattr(self, key, kwargs[key])
 
 
+# 单据表单form明细-分摊明细表单
+class ReceiptFormDetailApportionsFormObject:
+    project: str
+    apportionId: str
+    apportionMoney: dict
+    apportionPercent: str
+    expenseDepartment: str
+
+    def __init__(self, **kwargs):
+        self.project = kwargs.get('项目', '')
+        self.apportionId = kwargs.get('apportionId', '')
+        self.apportionMoney = kwargs.get('apportionMoney', {})
+        self.apportionPercent = kwargs.get('apportionPercent', '')
+        self.expenseDepartment = kwargs.get('expenseDepartment', '')
+
+    # 自定义 toJSON() 方法，用于将类转换为 JSON 格式的对象
+    def to_json(self):
+        return {
+            'project': self.project,
+            'apportionId': self.apportionId,
+            'apportionMoney': self.apportionMoney,
+            'apportionPercent': self.apportionPercent,
+            'expenseDepartment': self.expenseDepartment
+        }
+
+
+# 单据表单form明细-分摊明细
 class ReceiptFormDetailApportionsObject:
-    apportionForm: dict
+    apportionForm: ReceiptFormDetailApportionsFormObject
     specificationId: str
 
     def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            if isinstance(value, dict):
-                self.__dict__[key] = ReceiptObject(**value)
-            else:
-                self.__dict__[key] = value
+        self.apportionForm = ReceiptFormDetailApportionsFormObject(**kwargs.get('apportionForm', {}))
+        self.specificationId = kwargs.get('specificationId', '')
+
+    # 自定义 toJSON() 方法，用于将类转换为 JSON 格式的对象
+    def to_json(self):
+        return {
+            'specificationId': self.specificationId,
+            'apportionForm': self.apportionForm.to_json()
+        }
 
 
 # 单据表单form明细-费用类型
-class ReceiptFormDetailFeeTypeObject:
+class ReceiptFormDetailsFeeTypeObject:
     amount: dict
-    项目: str
+    project: str
     feeDate: int
     invoice: str
     taxRate: str
@@ -433,35 +564,41 @@ class ReceiptFormDetailFeeTypeObject:
     invoiceForm: dict
     consumptionReasons: str
 
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            if isinstance(value, dict):
-                self.__dict__[key] = ReceiptObject(**value)
-            else:
-                self.__dict__[key] = value
+    def __init__(self, apportions: List[dict] = None, **kwargs):
+        self.amount = kwargs.get('amount', {})
+        self.project = kwargs.get('项目', '')
+        self.feeDate = kwargs.get('feeDate', 0)
+        self.invoice = kwargs.get('invoice', '')
+        self.taxRate = kwargs.get('taxRate', '')
+        self.detailId = kwargs.get('detailId', '')
+        self.detailNo = kwargs.get('detailNo', '')
+        self.taxAmount = kwargs.get('taxAmount', {})
+        self.apportions = [ReceiptFormDetailApportionsObject(**apt) for apt in apportions] if apportions else []
+        self.attachments = kwargs.get('attachments', [])
+        self.invoiceForm = kwargs.get('invoiceForm', {})
+        self.consumptionReasons = kwargs.get('consumptionReasons', '')
 
 
 # 单据表单form明细类
-class ReceiptFormDetailObject:
+class ReceiptFormDetailsObject:
     feeTypeId: str
-    feeTypeForm: ReceiptFormDetailFeeTypeObject
+    feeTypeForm: ReceiptFormDetailsFeeTypeObject
     specificationId: str
     feeType: dict
 
     def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            if isinstance(value, dict):
-                self.__dict__[key] = ReceiptFormObject(**value)
-            else:
-                self.__dict__[key] = value
+        self.feeTypeId = kwargs.get('feeTypeId', '')
+        self.feeTypeForm = ReceiptFormDetailsFeeTypeObject(**kwargs.get('feeTypeForm', {}))
+        self.specificationId = kwargs.get('specificationId', '')
+        self.feeType = kwargs.get('feeType', {})
 
 
 # 单据表单form类
 class ReceiptFormObject:
     code: str
     title: str
-    项目: str
-    details: List[ReceiptFormDetailObject]
+    project: str
+    details: List[ReceiptFormDetailsObject]
     payDate: int
     payPlan: list
     payeeId: str
@@ -474,15 +611,17 @@ class ReceiptFormObject:
     description: str
     expenseDate: int
     flowEndTime: int
+    lastPrinter: str
     submitterId: str
     expenseLinks: list
     expenseMoney: dict
     receiptState: str
     rejectionNum: str
-    法人实体: str
+    legalEntity: str
+    lastPrintTime: int
     voucherStatus: str
     companyRealPay: dict
-    onlyOwnerPrint: bool
+    onlyOwnerPrint: str
     paymentChannel: str
     specificationId: str
     writtenOffMoney: dict
@@ -492,15 +631,48 @@ class ReceiptFormObject:
     preApprovedNodeName: str
     preNodeApprovedTime: int
     timeToEnterPendingPayment: int
-    ownerAndApproverPrintNodeFlag: bool
+    ownerAndApproverPrintNodeFlag: str
     writtenOffRecords: list
 
-    def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            if isinstance(value, dict):
-                self.__dict__[key] = ReceiptObject(**value)
-            else:
-                self.__dict__[key] = value
+    def __init__(self, details: List[dict] = None, **kwargs):
+        self.code = kwargs.get('code', '')
+        self.title = kwargs.get('title', '')
+        self.project = kwargs.get('项目', '')
+        self.details = [ReceiptFormDetailsObject(**detail) for detail in details] if details else []
+        self.payDate = kwargs.get('payDate', 0)
+        self.payPlan = kwargs.get('payPlan', [])
+        self.payeeId = kwargs.get('payeeId', '')
+        self.payMoney = kwargs.get('payMoney', {})
+        self.voucherNo = kwargs.get('voucherNo', '')
+        self.printCount = kwargs.get('printCount', '')
+        self.printState = kwargs.get('printState', '')
+        self.submitDate = kwargs.get('submitDate', 0)
+        self.attachments = kwargs.get('attachments', [])
+        self.description = kwargs.get('description', '')
+        self.expenseDate = kwargs.get('expenseDate', 0)
+        self.flowEndTime = kwargs.get('flowEndTime', 0)
+        self.lastPrinter = kwargs.get('lastPrinter', '')
+        self.submitterId = kwargs.get('submitterId', '')
+        self.expenseLinks = kwargs.get('expenseLinks', [])
+        self.expenseMoney = kwargs.get('expenseMoney', {})
+        self.receiptState = kwargs.get('receiptState', '')
+        self.rejectionNum = kwargs.get('rejectionNum', '')
+        self.legalEntity = kwargs.get('法人实体', '')
+        self.lastPrintTime = kwargs.get('lastPrintTime', 0)
+        self.voucherStatus = kwargs.get('voucherStatus', '')
+        self.companyRealPay = kwargs.get('companyRealPay', {})
+        self.onlyOwnerPrint = kwargs.get('onlyOwnerPrint', '')
+        self.paymentChannel = kwargs.get('paymentChannel', '')
+        self.specificationId = kwargs.get('specificationId', '')
+        self.writtenOffMoney = kwargs.get('writtenOffMoney', {})
+        self.paymentAccountId = kwargs.get('paymentAccountId', '')
+        self.expenseDepartment = kwargs.get('expenseDepartment', '')
+        self.voucherCreateTime = kwargs.get('voucherCreateTime', 0)
+        self.preApprovedNodeName = kwargs.get('preApprovedNodeName', '')
+        self.preNodeApprovedTime = kwargs.get('preNodeApprovedTime', 0)
+        self.timeToEnterPendingPayment = kwargs.get('timeToEnterPendingPayment', 0)
+        self.ownerAndApproverPrintNodeFlag = kwargs.get('ownerAndApproverPrintNodeFlag', '')
+        self.writtenOffRecords = kwargs.get('writtenOffRecords', [])
 
 
 # 单据类
@@ -510,10 +682,7 @@ class ReceiptObject:
     active: str
     state: str
     flowType: str
-    invoiceRemind: str
     corporationId: str
-    sourceCorporationId: str
-    dataCorporationId: str
     ownerId: str
     ownerDefaultDepartment: str
     logs: list
@@ -523,13 +692,21 @@ class ReceiptObject:
     form: ReceiptFormObject
 
     def __init__(self, **kwargs):
-        for key, value in kwargs.items():
-            if isinstance(value, dict):
-                self.__dict__[key] = ReceiptObject(**value)
-            else:
-                self.__dict__[key] = value
+        self.id = kwargs.get('id', '')
+        self.formType = kwargs.get('formType', '')
+        self.active = kwargs.get('active', '')
+        self.state = kwargs.get('state', '')
+        self.flowType = kwargs.get('flowType', '')
+        self.corporationId = kwargs.get('corporationId', '')
+        self.ownerId = kwargs.get('ownerId', '')
+        self.ownerDefaultDepartment = kwargs.get('ownerDefaultDepartment', '')
+        self.logs = kwargs.get('logs', [])
+        self.actions = kwargs.get('actions', {})
+        self.createTime = kwargs.get('createTime', 0)
+        self.updateTime = kwargs.get('updateTime', 0)
+        self.form = ReceiptFormObject(**kwargs.get('form', {}))
 
 
 if __name__ == '__main__':
     # task_run('ods_ppy_ykb_new_receipt_list')
-    task_run('ods_ppy_ykb_new_receipt_list', '2023-11-07', '2023-11-07')
+    task_run('ods_ppy_ykb_new_receipt_list', '2021-07-01', '2024-04-01')
