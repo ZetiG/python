@@ -1,6 +1,6 @@
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pymysql
 import requests
@@ -9,11 +9,8 @@ from enum import Enum
 from dbutils.pooled_db import PooledDB
 
 # 全局变量
-# global_access_token = None
-# access_token_expire = None
-
-global_access_token = 'ID01xNTVNQrH3h:ID_3gmIXhB0M38'
-access_token_expire = datetime(2024, 3, 15, 17, 17, 37)
+global_access_token = None
+access_token_expire = None
 
 # 易快报请求参数
 base_ykb_request_url = 'https://dd2.ekuaibao.com/api/openapi'
@@ -60,7 +57,7 @@ def task_run(task_name, start_date=None, end_date=None):
     # 获取routing
     request_routing = TableNameEnum.get_routing_by_name(task_name)
     if request_routing is None or request_routing == '':
-        print(f"该表名在枚举类中不存在:[{task_name}]")
+        print(f"该表名在枚举类中不存在或无须单独同步:[{task_name}]")
         sys.exit(1)
 
     ykb_request_url = base_ykb_request_url + request_routing
@@ -76,9 +73,9 @@ def task_run(task_name, start_date=None, end_date=None):
 
         receipt_type_list = ['expense', 'loan', 'payment', 'requisition']
         for receipt_type in receipt_type_list:
-            params['type'] = receipt_type,
-            params['orderBy'] = 'updateTime',
-            params['startDate'] = start_date + ' 00:00:00',
+            params['type'] = receipt_type
+            params['orderBy'] = 'updateTime'
+            params['startDate'] = start_date + ' 00:00:00'
             params['endDate'] = end_date + ' 23:59:59'
             get_data_write_db(ykb_request_url, params, task_name)
 
@@ -126,9 +123,8 @@ def get_data_write_db(ykb_request_url, params, table_name):
         # 无分页，则代表一次性请求完了，直接跳出循环
         if count <= 0:
             break
-
+        total_count = count
         # 否则计算下次请求的分页起始值
-        total_count = convert_to_nearest_multiple(count, page_count)
         page_start += page_count
         params.update({'start': page_start})
 
@@ -136,8 +132,8 @@ def get_data_write_db(ykb_request_url, params, table_name):
 # 解析单据列表接口结果集
 def parse_receipt_list(table_name, datas):
     if table_name is None or table_name == '' or datas is None or len(datas) <= 0:
-        print(f'待解析数据不能为空, tableName:[{table_name}]')
-        sys.exit(1)
+        print(f'待解析数据为空, tableName:[{table_name}]')
+        return
 
     # 拼接insert-SQL（insert into (xxx) value(%s,%s)）
     insert_sql_prefix = get_insert_sql_prefix(table_name)
@@ -213,7 +209,7 @@ def parse_receipt_list(table_name, datas):
                                                  apportion.apportionForm.apportionId, apportion.apportionForm.project,
                                                  apportion.specificationId, apportion.apportionForm.apportionPercent,
                                                  apportion.apportionForm.expenseDepartment,
-                                                 apportion.apportionForm.apportionMoney['standard'],
+                                                 apportion.apportionForm.apportionMoney.get('standard'),
                                                  json.dumps(apportion.apportionForm.apportionMoney))
                             sql_params_aux.append(receipt_aux_tuple)
 
@@ -221,7 +217,7 @@ def parse_receipt_list(table_name, datas):
                     receipt_det_tuple = (datetime.fromtimestamp(receipt.createTime/1000).strftime('%Y-%m-%d'),
                                          receipt.id, detail.feeTypeForm.detailId, detail.feeTypeId,
                                          detail.specificationId, detail.feeTypeForm.project,
-                                         detail.feeTypeForm.amount['standard'], json.dumps(detail.feeTypeForm.amount),
+                                         detail.feeTypeForm.amount.get('standard'), json.dumps(detail.feeTypeForm.amount),
                                          detail.feeTypeForm.feeDate, json.dumps(detail.feeTypeForm.taxAmount),
                                          json.dumps([apportion.to_json() for apportion in detail.feeTypeForm.apportions]
                                                     ) if len(detail.feeTypeForm.apportions) > 0 else '{}',
@@ -236,10 +232,10 @@ def parse_receipt_list(table_name, datas):
                              receipt.id, receipt.form.code, receipt.form.title, receipt.active, receipt.form.project,
                              receipt.form.specificationId, receipt.formType, receipt.state, receipt.flowType,
                              receipt.corporationId, receipt.ownerId, receipt.ownerDefaultDepartment,
-                             receipt.form.payDate, receipt.form.payeeId, receipt.form.payMoney['standard'],
+                             receipt.form.payDate, receipt.form.payeeId, receipt.form.payMoney.get('standard'),
                              json.dumps(receipt.form.payMoney), receipt.form.voucherNo, receipt.form.submitDate,
                              receipt.form.expenseDate, receipt.form.flowEndTime, receipt.form.description,
-                             receipt.form.expenseMoney['standard'], json.dumps(receipt.form.expenseMoney),
+                             receipt.form.expenseMoney.get('standard'), json.dumps(receipt.form.expenseMoney),
                              receipt.form.submitterId, receipt.form.legalEntity, receipt.form.voucherStatus,
                              json.dumps(receipt.form.companyRealPay), receipt.form.paymentChannel,
                              json.dumps(receipt.form.writtenOffMoney), receipt.form.paymentAccountId,
@@ -279,7 +275,7 @@ def sql_params_batch_deal(table_name, insert_sql_prefix, sql_params):
         end = min(start + batch_size, count)
         batch_params = sql_params[start:end]
         row = execute_insert_sql(insert_sql_prefix, batch_params)
-        print(f"表:[{table_name}]分批处理，总数[{count}], 每批[{batch_size}]条, 共[{count//batch_size}]批, "
+        print(f"表:[{table_name}]分批处理，总数[{count}], 每批[{batch_size}]条, 共[{count//batch_size+1}]批, "
               f"当前第 {start//batch_size+1} 批, 该批入库完成[{row}]条")
 
 
@@ -409,13 +405,6 @@ class TableNameEnum(Enum):
         for tb in TableNameEnum:
             if tb.table_name == table_name:
                 return tb.routing
-
-
-# 将t1转化为大于当前值且是最小的f1的倍数的下一个值
-def convert_to_nearest_multiple(t1, f1):
-    if t1 % f1 == 0:
-        return t1  # 如果已经是f1的倍数，则无需转换
-    return ((t1 // f1) + 1) * f1    # 计算大于t1且是最小的f1的倍数的下一个值
 
 
 # 员工列表
@@ -707,6 +696,33 @@ class ReceiptObject:
         self.form = ReceiptFormObject(**kwargs.get('form', {}))
 
 
-if __name__ == '__main__':
+# 获取脚本执行参数
+tableName = None
+startDate = None
+endDate = None
+
+if len(sys.argv[1:]) == 0:
+    print("缺少必要的请求参数：目标表名(必填)、开始日期(可选)、截止日期(可选，不传默认当天24点)")
+    sys.exit(1)
+elif len(sys.argv[1:]) == 1 and TableNameEnum.tbName_ykb_receipt_list.table_name == sys.argv[1]:
+    print("该表至少需要两个入参：目标表名、开始日期、截止日期(可选，不传默认当天24点)")
+    sys.exit(1)
+elif len(sys.argv[1:]) == 2:
+    startDate = sys.argv[2]
+    endDate = (datetime.now() + timedelta(days=1)).strftime('%Y-%m-%d')
+elif len(sys.argv[1:]) == 3:
+    startDate = sys.argv[2]
+    endDate = sys.argv[3]
+
+tableName = sys.argv[1]
+
+print(f'易快报脚本执行入参: tableName:[{tableName}], startDate:[{startDate}], endDate:[{endDate}]')
+# 执行程序
+task_run(tableName, startDate, endDate)
+
+print(f'易快报脚本执行完成！: tableName:[{tableName}], startDate:[{startDate}], endDate:[{endDate}]')
+
+
+# if __name__ == '__main__':
     # task_run('ods_ppy_ykb_new_receipt_list')
-    task_run('ods_ppy_ykb_new_receipt_list', '2021-07-01', '2024-04-01')
+    # task_run('ods_ppy_ykb_new_receipt_list', '2024-03-15', '2024-03-15')
